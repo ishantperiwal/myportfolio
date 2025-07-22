@@ -3,16 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GLB Model Viewer - Orthographic</title>
-    <!-- Google Fonts: Aldrich -->
+    <title>GLB Model Viewer - Orthographic with Ellipse</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Aldrich&display=swap" rel="stylesheet">
-    <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- GSAP for animations -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
-    <!-- html2canvas for rasterizing web content -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         /* Custom styles for the 3D canvas and file input */
@@ -38,8 +34,8 @@
             pointer-events: none; /* Allow clicks to pass through to the canvas */
             z-index: 40; /* Layer between reveal layer and UI */
         }
-        #css3d-container iframe, #css3d-container div {
-            pointer-events: none; /* But allow clicks on the iframe itself */
+        #css3d-container iframe {
+            pointer-events: none;
             border: 0;
             border-radius: 0px;
         }
@@ -47,8 +43,8 @@
         #model-input {
             display: none;
         }
-        /* Style the color picker */
-        #bg-color-picker {
+        /* Style the color pickers */
+        #bg-color-picker, #grid-color-picker, #ellipse-color-picker {
             -webkit-appearance: none;
             -moz-appearance: none;
             appearance: none;
@@ -60,11 +56,11 @@
             cursor: pointer;
             background-color: transparent;
         }
-        #bg-color-picker::-webkit-color-swatch {
+        #bg-color-picker::-webkit-color-swatch, #grid-color-picker::-webkit-color-swatch, #ellipse-color-picker::-webkit-color-swatch {
             border-radius: 0.5rem;
             border: 2px solid #e5e7eb; /* gray-200 */
         }
-        #bg-color-picker::-moz-color-swatch {
+        #bg-color-picker::-moz-color-swatch, #grid-color-picker::-moz-color-swatch, #ellipse-color-picker::-moz-color-swatch {
             border-radius: 0.5rem;
             border: 2px solid #e5e7eb; /* gray-200 */
         }
@@ -108,31 +104,76 @@
         #message-box {
             transition: opacity 0.5s, transform 0.5s;
         }
+        /* NEW: Styles for 3D text */
+        .text-container {
+            font-family: 'Aldrich', sans-serif;
+            color: white;
+            transform: skewX(-10deg);
+            line-height: 1.1;
+            white-space: nowrap;
+            user-select: none;
+            pointer-events: auto; /* Make text interactive */
+        }
+        #left-text-container h1 {
+            font-size: 72px;
+            margin-bottom: 16px;
+            font-weight: 700;
+        }
+        #left-text-container p {
+            font-size: 24px;
+            color: #ACACAC;
+        }
+        #right-text-container {
+            display: flex;
+            flex-direction: column;
+            text-align: left;
+            gap:20px;
+        }
+        #right-text-container a {
+            font-size: 36px;
+            font-weight: 700;
+            text-decoration: none;
+            color: #ACACAC;
+            margin-bottom: 5px;
+            transition: transform 0.2s ease-out, color 0.2s ease-in-out;
+        }
+        #right-text-container a:hover {
+            transform: translateX(10px);
+            color: white;
+        }
     </style>
 </head>
 <body class="text-white">
 
-    <!-- Background Text Layer -->
+    <div style="position: absolute; top: -9999px; left: -9999px;">
+        <div id="left-text-container" class="text-container">
+            <h1>ISHANT</h1>
+            <p>PRODUCT DESIGN</p>
+        </div>
+        <div id="right-text-container" class="text-container">
+            <a href="#">CONTACT</a>
+            <a href="#">ABOUT</a>
+            <a href="#">WORK</a>
+            <a href="#">RESUME</a>
+        </div>
+    </div>
+
+
     <div id="background-text-layer" class="absolute inset-0 z-10 flex justify-center items-start pt-24 pointer-events-none">
         <h1 id="ishant-text" class="text-9xl font-black text-white opacity-10 select-none"></h1>
     </div>
 
-    <!-- Noise layer element -->
     <div class="noise-layer"></div>
 
-    <!-- The container for the 3D viewer -->
     <div id="viewer-container" class="w-screen h-screen absolute top-0 left-0 z-20">
         <canvas id="viewer-canvas"></canvas>
     </div>
 
-    <!-- New container for the CSS3D renderer -->
     <div id="css3d-container"></div>
 
-    <!-- Hidden container for the iframe that will be rasterized -->
     <div id="placeholder-iframe-container"></div>
 
-    <!-- UI elements overlaid on the viewer -->
-    <div class="absolute top-0 left-0 p-6 w-full flex flex-col sm:flex-row justify-between items-start z-[60]">
+    <div class="absolute top-0 right-0 p-6 w-full flex flex-col sm:flex-row justify-between items-start z-[60]">
         <div id="top-left-ui" class="pointer-events-auto" style="display:none;">
             <h1 id="title-text" class="text-2xl font-bold text-white drop-shadow-sm">3D Model Viewer</h1>
             <p id="instructions" class="text-gray-300 drop-shadow-sm max-w-sm">
@@ -140,54 +181,108 @@
             </p>
         </div>
 
-        <div class="flex items-start space-x-2 pointer-events-auto" style="display:none;">
-            <!-- UI Toggle Button -->
+        <div class="ml-auto flex items-start space-x-2 pointer-events-auto" style="display:block;">
             <button id="toggle-ui-btn" class="p-2 rounded-lg bg-white/20 backdrop-blur-sm shadow hover:bg-white/30 transition-colors">
                 <svg id="eye-icon-open" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-eye"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                 <svg id="eye-icon-closed" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-eye-off hidden"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
             </button>
 
-            <!-- Container for all other UI controls -->
-            <div id="ui-controls-container" class="flex items-center space-x-4">
-                 <!-- Glass Effect Controls -->
-                <div class="flex flex-col items-center space-y-1 bg-white/20 backdrop-blur-sm p-3 rounded-lg shadow">
+            <div id="ui-controls-container" class="flex items-start flex-wrap gap-4">
+                 <div class="flex flex-col items-center space-y-1 bg-white/20 backdrop-blur-sm p-3 rounded-lg shadow">
                     <label for="object-name-input" id="object-name-label" class="text-sm font-medium text-gray-300">Object Name for Glass</label>
                     <input type="text" id="object-name-input" placeholder="e.g., 'Screen'" class="w-32 px-2 py-1 border border-gray-500 rounded-md text-sm bg-white/10 text-white">
                     <button id="apply-glass-btn" class="mt-2 w-full bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-3 rounded-md text-sm transition-colors">Apply Effect</button>
                 </div>
-                 <!-- Noise Controls -->
-                <div class="flex flex-col items-center space-y-1">
+                 <div class="flex flex-col items-center space-y-1 bg-white/20 backdrop-blur-sm p-3 rounded-lg shadow">
                     <label for="noise-opacity-slider" id="noise-opacity-label" class="text-sm font-medium text-gray-300">Noise Opacity</label>
                     <input type="range" id="noise-opacity-slider" min="0" max="0.5" step="0.01" value="0.07" class="w-24 h-2 bg-gray-500 rounded-lg appearance-none cursor-pointer">
-                </div>
-                <div class="flex flex-col items-center space-y-1">
-                    <label for="noise-speed-slider" id="noise-speed-label" class="text-sm font-medium text-gray-300">Animation Speed</label>
+                    <label for="noise-speed-slider" id="noise-speed-label" class="text-sm font-medium text-gray-300 mt-2">Animation Speed</label>
                     <input type="range" id="noise-speed-slider" min="0.1" max="2" step="0.1" value="1" class="w-24 h-2 bg-gray-500 rounded-lg appearance-none cursor-pointer">
                 </div>
-                 <!-- Color Picker -->
-                <input type="color" id="bg-color-picker" value="#363636" title="Change background color">
-                <!-- Styled file input button -->
-                <label for="model-input" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-lg cursor-pointer transition-colors duration-300">
-                    Load Model
-                </label>
-                <input type="file" id="model-input" accept=".glb, .gltf">
+                <div id="grid-controls" class="flex flex-col items-center space-y-1 bg-white/20 backdrop-blur-sm p-3 rounded-lg shadow">
+                    <label class="text-sm font-medium text-gray-300">Grid Controls</label>
+                    <div class="flex items-center space-x-2 w-full">
+                        <label for="grid-width-slider" class="text-xs text-gray-300 flex-1">Grid Width (<span id="grid-width-value">22</span>)</label>
+                        <input type="range" id="grid-width-slider" min="1" max="50" step="1" class="w-24 h-2 bg-gray-500 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div class="flex items-center space-x-2 w-full">
+                        <label for="grid-height-slider" class="text-xs text-gray-300 flex-1">Grid Height (<span id="grid-height-value">11</span>)</label>
+                        <input type="range" id="grid-height-slider" min="1" max="50" step="1" class="w-24 h-2 bg-gray-500 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div class="flex items-center space-x-2 w-full">
+                        <label for="square-size-slider" class="text-xs text-gray-300 flex-1">Square Size (<span id="square-size-value">1.0</span>)</label>
+                        <input type="range" id="square-size-slider" min="0.1" max="5" step="0.1" class="w-24 h-2 bg-gray-500 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div class="flex items-center space-x-2 w-full">
+                        <label for="grid-thickness-slider" class="text-xs text-gray-300 flex-1">Thickness</label>
+                        <input type="range" id="grid-thickness-slider" min="0.01" max="0.5" step="0.01" class="w-24 h-2 bg-gray-500 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div class="flex items-center space-x-2 w-full">
+                        <label for="grid-offset-x-slider" class="text-xs text-gray-300 flex-1">Offset X (<span id="grid-offset-x-value">0.0</span>)</label>
+                        <input type="range" id="grid-offset-x-slider" min="-10" max="10" step="0.1" value="0.0" class="w-24 h-2 bg-gray-500 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div class="flex items-center space-x-2 w-full">
+                        <label for="grid-offset-z-slider" class="text-xs text-gray-300 flex-1">Offset Z (<span id="grid-offset-z-value">0.0</span>)</label>
+                        <input type="range" id="grid-offset-z-slider" min="-10" max="10" step="0.1" value="0.0" class="w-24 h-2 bg-gray-500 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div class="flex items-center space-x-2 w-full mt-2">
+                        <label for="grid-color-picker" class="text-xs text-gray-300 flex-1">Color</label>
+                        <input type="color" id="grid-color-picker">
+                    </div>
+                </div>
+                <!-- START: Updated Ellipse Controls -->
+                <div id="ellipse-controls" class="flex flex-col items-center space-y-1 bg-white/20 backdrop-blur-sm p-3 rounded-lg shadow">
+                    <label class="text-sm font-medium text-gray-300">Stroke Controls</label>
+                    <div class="flex items-center space-x-2 w-full">
+                        <label for="ellipse-diameter-x-slider" class="text-xs text-gray-300 flex-1">Diameter X (<span id="ellipse-diameter-x-value">1.0</span>)</label>
+                        <input type="range" id="ellipse-diameter-x-slider" min="0.1" max="2.0" step="0.01" value="1.0" class="w-24 h-2 bg-gray-500 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                     <div class="flex items-center space-x-2 w-full">
+                        <label for="ellipse-diameter-y-slider" class="text-xs text-gray-300 flex-1">Diameter Y (<span id="ellipse-diameter-y-value">1.0</span>)</label>
+                        <input type="range" id="ellipse-diameter-y-slider" min="0.1" max="2.0" step="0.01" value="1.0" class="w-24 h-2 bg-gray-500 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div class="flex items-center space-x-2 w-full">
+                        <label for="ellipse-thickness-slider" class="text-xs text-gray-300 flex-1">Thickness (<span id="ellipse-thickness-value">0.1</span>)</label>
+                        <input type="range" id="ellipse-thickness-slider" min="0.01" max="0.5" step="0.01" value="0.1" class="w-24 h-2 bg-gray-500 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div class="flex items-center space-x-2 w-full">
+                        <label for="ellipse-softness-slider" class="text-xs text-gray-300 flex-1">Softness (<span id="ellipse-softness-value">0.5</span>)</label>
+                        <input type="range" id="ellipse-softness-slider" min="0.01" max="1.0" step="0.01" value="0.5" class="w-24 h-2 bg-gray-500 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div class="flex items-center space-x-2 w-full">
+                        <label for="ellipse-offset-x-slider" class="text-xs text-gray-300 flex-1">Offset X (<span id="ellipse-offset-x-value">0.0</span>)</label>
+                        <input type="range" id="ellipse-offset-x-slider" min="-1.0" max="1.0" step="0.01" value="0.0" class="w-24 h-2 bg-gray-500 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div class="flex items-center space-x-2 w-full">
+                        <label for="ellipse-offset-y-slider" class="text-xs text-gray-300 flex-1">Offset Y (<span id="ellipse-offset-y-value">0.0</span>)</label>
+                        <input type="range" id="ellipse-offset-y-slider" min="-1.0" max="1.0" step="0.01" value="0.0" class="w-24 h-2 bg-gray-500 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div class="flex items-center space-x-2 w-full mt-2">
+                        <label for="ellipse-color-picker" class="text-xs text-gray-300 flex-1">Color</label>
+                        <input type="color" id="ellipse-color-picker">
+                    </div>
+                </div>
+                <!-- END: Updated Ellipse Controls -->
+                 <div class="flex flex-col space-y-2">
+                    <input type="color" id="bg-color-picker" value="#363636" title="Change background color">
+                    <label for="model-input" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-lg cursor-pointer transition-colors duration-300">
+                        Load Model
+                    </label>
+                    <input type="file" id="model-input" accept=".glb, .gltf">
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- NEW: Reveal Layer -->
     <div id="reveal-layer" class="absolute inset-0 bg-black z-30 pointer-events-none"></div>
 
-    <!-- Message Box -->
     <div id="message-box" class="hidden absolute top-5 left-1/2 -translate-x-1/2 p-4 rounded-lg text-white font-semibold shadow-2xl z-[70] pointer-events-none opacity-0 -translate-y-20">
         <p id="message-text"></p>
     </div>
 
 
-    <!-- ES Module Shims for browser compatibility -->
     <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
 
-    <!-- Import map for three.js modules from CDN -->
     <script type="importmap">
     {
         "imports": {
@@ -208,15 +303,15 @@
 
         // --- Camera and Orbit Controls ---
         const INITIAL_CAMERA_POSITION = new THREE.Vector3(2.2, 2.6, 5);
-        const INITIAL_CAMERA_PAN_X = -0.8;
-        const INITIAL_CAMERA_PAN_Y = -1;
+        const INITIAL_CAMERA_PAN_X = -0.95;
+        const INITIAL_CAMERA_PAN_Y = -1.35;
         const INITIAL_CAMERA_ZOOM = 2.45;
         const INITIAL_MIN_ZOOM = 2.45;
-        const INITIAL_MAX_ZOOM = 4.5;
-        const ORBIT_LIMIT_LEFT = 16;
+        const INITIAL_MAX_ZOOM = 4.2;
+        const ORBIT_LIMIT_LEFT = 10;
         const ORBIT_LIMIT_RIGHT = 48;
         const ORBIT_LIMIT_UP = 38;
-        const ORBIT_LIMIT_DOWN = -10;
+        const ORBIT_LIMIT_DOWN = -20;
         const SNAP_BACK_DURATION = 0.5;
         const SNAP_BACK_EASING = "power2.out";
 
@@ -262,7 +357,7 @@
         const WOBBLE_DURATION = 1.0;  // Total duration of the wobble animation in seconds
 
         // --- Camera Hover Controls ---
-        const HOVER_AMPLITUDE = 0.26; // How far the camera will float from center
+        const HOVER_AMPLITUDE = 0.22; // How far the camera will float from center
         const HOVER_SPEED = 0.35;      // How fast the camera will float
         const HOVER_FADE_DURATION = 1.0; // Duration for hover fade in/out
 
@@ -297,6 +392,23 @@
         const HDRI_URL = 'hdri/nightsky.hdr';
         const HDRI_INTENSITY = 1.5;
 
+        // --- Grid Controls ---
+        const GRID_WIDTH = 27;
+        const GRID_HEIGHT = 23;
+        const SQUARE_SIZE = 0.66;
+        const GRID_THICKNESS = 0.02;
+        const GRID_COLOR = '#404040';
+        const GRID_OFFSET_X = 0.0;
+        const GRID_OFFSET_Z = -2.8;
+
+        // --- NEW: Ellipse Controls ---
+        const ELLIPSE_COLOR = '#696969';
+        const ELLIPSE_DIAMETER_X = 0.24;
+        const ELLIPSE_DIAMETER_Y = 0.2;
+        const ELLIPSE_THICKNESS = 0.40;
+        const ELLIPSE_SOFTNESS = 0.28;
+        const ELLIPSE_OFFSET_X = 0.0;
+        const ELLIPSE_OFFSET_Y = 0.01;
 
         // --- Plane Controls ---
         const INTERACTIVE_URL = 'OS/index.html';
@@ -344,7 +456,7 @@
 
 
 
-        // DEFAULT_GLB_URL = 'https://cdn.jsdelivr.net/gh/ishantperiwal/portfolio@672542c848d96a8d4f43b702b86492530ee1881b/models/8%20New%20flower%20STICKER%20motion%20card%20full%20scene%20material%20change.glb';
+        //const DEFAULT_GLB_URL = 'https://cdn.jsdelivr.net/gh/ishantperiwal/portfolio@672542c848d96a8d4f43b702b86492530ee1881b/models/8%20New%20flower%20STICKER%20motion%20card%20full%20scene%20material%20change.glb';
         const DEFAULT_GLB_URL = 'scene.glb';
 
 
@@ -367,8 +479,17 @@
         const messageBox = document.getElementById('message-box');
         const messageText = document.getElementById('message-text');
         const revealLayer = document.getElementById('reveal-layer');
+        // MODIFIED: Get grid control elements
+        const gridWidthSlider = document.getElementById('grid-width-slider');
+        const gridHeightSlider = document.getElementById('grid-height-slider');
+        const squareSizeSlider = document.getElementById('square-size-slider');
+        const gridThicknessSlider = document.getElementById('grid-thickness-slider');
+        const gridColorPicker = document.getElementById('grid-color-picker');
+        const gridOffsetXSlider = document.getElementById('grid-offset-x-slider');
+        const gridOffsetZSlider = document.getElementById('grid-offset-z-slider');
 
         let scene, camera, renderer, cssRenderer, controls, loadedModel, internalLight;
+        let leftTextObject, rightTextObject; // NEW: Declared in top-level scope
         let cameraGroup; // Parent group for the camera
         let hoverIntensity = { value: 0 }; // Use object for GSAP tweening
         let beeModel, beeMixer;
@@ -408,6 +529,12 @@
         let body86InitialY = 0;
         let groundLightLeft, groundLightRight; // NEW: Variables for ground lights
 
+        // NEW: Variable for the custom grid
+        let gridGroup;
+        // NEW: Variables for the ellipse effect
+        let ellipsePlane, ellipseMaterial;
+
+
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
         const clock = new THREE.Clock();
@@ -415,9 +542,133 @@
         const cameraDirection = new THREE.Vector3();
         let maxAnisotropy;
 
+        // --- MODIFIED: Function to create a simple grid ---
+        function updateCustomGrid() {
+            if (gridGroup) {
+                scene.remove(gridGroup);
+                gridGroup.children.forEach(line => {
+                    line.geometry.dispose();
+                });
+                if (gridGroup.children.length > 0) {
+                     gridGroup.children[0].material.dispose();
+                }
+            }
 
+            const width = parseFloat(gridWidthSlider.value);
+            const height = parseFloat(gridHeightSlider.value);
+            const squareSize = parseFloat(squareSizeSlider.value);
+            const thickness = parseFloat(gridThicknessSlider.value);
+            const color = new THREE.Color(gridColorPicker.value);
 
+            const material = new THREE.MeshBasicMaterial({ color: color, side: THREE.DoubleSide });
 
+            gridGroup = new THREE.Group();
+
+            // Create vertical lines
+            const numLinesX = Math.floor(width / squareSize);
+            const halfWidth = width / 2;
+            const verticalLineGeo = new THREE.PlaneGeometry(thickness, height);
+            for (let i = 0; i <= numLinesX; i++) {
+                const line = new THREE.Mesh(verticalLineGeo, material);
+                line.position.x = -halfWidth + i * squareSize;
+                gridGroup.add(line);
+            }
+
+            // Create horizontal lines
+            const numLinesY = Math.floor(height / squareSize);
+            const halfHeight = height / 2;
+            const horizontalLineGeo = new THREE.PlaneGeometry(width, thickness);
+            for (let i = 0; i <= numLinesY; i++) {
+                const line = new THREE.Mesh(horizontalLineGeo, material);
+                line.position.y = -halfHeight + i * squareSize; // Corresponds to Z after rotation
+                gridGroup.add(line);
+            }
+
+            gridGroup.rotation.x = -Math.PI / 2;
+
+            gridGroup.position.x = parseFloat(gridOffsetXSlider.value);
+            gridGroup.position.y = -0.01;
+            gridGroup.position.z = parseFloat(gridOffsetZSlider.value);
+
+            document.getElementById('grid-width-value').textContent = width.toFixed(1);
+            document.getElementById('grid-height-value').textContent = height.toFixed(1);
+            document.getElementById('square-size-value').textContent = squareSize.toFixed(1);
+            document.getElementById('grid-offset-x-value').textContent = gridGroup.position.x.toFixed(1);
+            document.getElementById('grid-offset-z-value').textContent = gridGroup.position.z.toFixed(1);
+
+            scene.add(gridGroup);
+        }
+
+        // --- MODIFIED: Function to create the visible ellipse stroke ---
+        function createEllipseEffect() {
+            const ellipseVertexShader = `
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `;
+
+            const ellipseFragmentShader = `
+                uniform vec3 uColor;
+                uniform vec2 uDiameter;
+                uniform float uThickness;
+                uniform float uSoftness;
+                uniform vec2 uOffset;
+                varying vec2 vUv;
+
+                void main() {
+                    vec2 centeredUv = (vUv - 0.5 - uOffset) * 2.0;
+                    vec2 scaledUv = centeredUv / uDiameter;
+                    float dist = length(scaledUv);
+
+                    float inner = 1.0 - uThickness;
+                    float alpha = smoothstep(inner - uSoftness, inner, dist) - smoothstep(1.0 - uSoftness, 1.0, dist);
+
+                    gl_FragColor = vec4(uColor, alpha);
+                }
+            `;
+
+            ellipseMaterial = new THREE.ShaderMaterial({
+                vertexShader: ellipseVertexShader,
+                fragmentShader: ellipseFragmentShader,
+                uniforms: {
+                    uColor: { value: new THREE.Color(ELLIPSE_COLOR) },
+                    uDiameter: { value: new THREE.Vector2(ELLIPSE_DIAMETER_X, ELLIPSE_DIAMETER_Y) },
+                    uThickness: { value: ELLIPSE_THICKNESS },
+                    uSoftness: { value: ELLIPSE_SOFTNESS },
+                    uOffset: { value: new THREE.Vector2(ELLIPSE_OFFSET_X, ELLIPSE_OFFSET_Y) }
+                },
+                transparent: true,
+                depthWrite: false
+            });
+
+            const ellipseGeometry = new THREE.PlaneGeometry(200, 200);
+            ellipsePlane = new THREE.Mesh(ellipseGeometry, ellipseMaterial);
+            ellipsePlane.position.y = 0.01; // Raised slightly higher
+            ellipsePlane.rotation.x = -Math.PI / 2;
+            scene.add(ellipsePlane);
+        }
+
+        // --- MODIFIED: Function to update the ellipse based on UI controls ---
+        function updateEllipseEffect() {
+            if (!ellipseMaterial) return;
+
+            ellipseMaterial.uniforms.uColor.value.set(document.getElementById('ellipse-color-picker').value);
+            ellipseMaterial.uniforms.uDiameter.value.x = parseFloat(document.getElementById('ellipse-diameter-x-slider').value);
+            ellipseMaterial.uniforms.uDiameter.value.y = parseFloat(document.getElementById('ellipse-diameter-y-slider').value);
+            ellipseMaterial.uniforms.uThickness.value = parseFloat(document.getElementById('ellipse-thickness-slider').value);
+            ellipseMaterial.uniforms.uSoftness.value = parseFloat(document.getElementById('ellipse-softness-slider').value);
+            ellipseMaterial.uniforms.uOffset.value.x = parseFloat(document.getElementById('ellipse-offset-x-slider').value);
+            ellipseMaterial.uniforms.uOffset.value.y = parseFloat(document.getElementById('ellipse-offset-y-slider').value);
+
+            document.getElementById('ellipse-diameter-x-value').textContent = ellipseMaterial.uniforms.uDiameter.value.x.toFixed(2);
+            document.getElementById('ellipse-diameter-y-value').textContent = ellipseMaterial.uniforms.uDiameter.value.y.toFixed(2);
+            document.getElementById('ellipse-thickness-value').textContent = ellipseMaterial.uniforms.uThickness.value.toFixed(2);
+            document.getElementById('ellipse-softness-value').textContent = ellipseMaterial.uniforms.uSoftness.value.toFixed(2);
+            document.getElementById('ellipse-offset-x-value').textContent = ellipseMaterial.uniforms.uOffset.value.x.toFixed(2);
+            document.getElementById('ellipse-offset-y-value').textContent = ellipseMaterial.uniforms.uOffset.value.y.toFixed(2);
+        }
 
         function createDefaultPlaceholderTexture() {
             const canvas = document.createElement('canvas');
@@ -497,6 +748,41 @@
                 scene.environmentIntensity = HDRI_INTENSITY;
             });
 
+            // --- Set initial values for grid controls and create the grid ---
+            gridWidthSlider.value = GRID_WIDTH;
+            gridHeightSlider.value = GRID_HEIGHT;
+            squareSizeSlider.value = SQUARE_SIZE;
+            gridThicknessSlider.value = GRID_THICKNESS;
+            gridColorPicker.value = GRID_COLOR;
+            gridOffsetXSlider.value = GRID_OFFSET_X;
+            gridOffsetZSlider.value = GRID_OFFSET_Z;
+            updateCustomGrid();
+
+            // --- Set initial values for ellipse controls and create the effect ---
+            document.getElementById('ellipse-color-picker').value = ELLIPSE_COLOR;
+            document.getElementById('ellipse-diameter-x-slider').value = ELLIPSE_DIAMETER_X;
+            document.getElementById('ellipse-diameter-y-slider').value = ELLIPSE_DIAMETER_Y;
+            document.getElementById('ellipse-thickness-slider').value = ELLIPSE_THICKNESS;
+            document.getElementById('ellipse-softness-slider').value = ELLIPSE_SOFTNESS;
+            document.getElementById('ellipse-offset-x-slider').value = ELLIPSE_OFFSET_X;
+            document.getElementById('ellipse-offset-y-slider').value = ELLIPSE_OFFSET_Y;
+            createEllipseEffect();
+            updateEllipseEffect(); // Call once to set initial text values
+
+            // --- Create and position 3D text objects ---
+            const leftTextElement = document.getElementById('left-text-container');
+            leftTextObject = new CSS3DObject(leftTextElement); // MODIFIED: Use top-level variable
+            leftTextObject.position.set(-4.3, 0.01, 2);
+            leftTextObject.rotation.x = -Math.PI / 2;
+            leftTextObject.scale.set(0.007, 0.007, 0.007);
+            scene.add(leftTextObject);
+
+            const rightTextElement = document.getElementById('right-text-container');
+            rightTextObject = new CSS3DObject(rightTextElement); // MODIFIED: Use top-level variable
+            rightTextObject.position.set(4.8, 0.01, -7.5);
+            rightTextObject.rotation.x = -Math.PI / 2;
+            rightTextObject.scale.set(0.007, 0.007, 0.007);
+            scene.add(rightTextObject);
 
             // --- Create Interactive CSS3DObject ---
             const iframeInteractive = document.createElement('iframe');
@@ -616,46 +902,57 @@
                 dragHappened = false;
             }, false);
 
+            // MODIFIED: `mousemove` listener to handle text fade-out
             renderer.domElement.addEventListener('mousemove', () => {
                 if (isMouseDown) {
+                    // NEW: If this is the first moment of dragging, fade out the text
+                    if (!dragHappened && (leftTextObject && rightTextObject)) {
+                        gsap.to([leftTextObject.element.style, rightTextObject.element.style], {
+                            opacity: 0,
+                            duration: 0.3,
+                            ease: "power1.inOut"
+                        });
+                    }
                     dragHappened = true;
                 }
             }, false);
 
+            // MODIFIED: `mouseup` listener to handle text fade-in after snap-back
             renderer.domElement.addEventListener('mouseup', (event) => {
                 if (isMouseDown) {
                     if (dragHappened) {
-                        if (isFocused) {
-                            gsap.to(camera.position, {
-                                x: focusedCameraState.position.x,
-                                y: focusedCameraState.position.y,
-                                z: focusedCameraState.position.z,
-                                duration: SNAP_BACK_DURATION,
-                                ease: SNAP_BACK_EASING
-                            });
-                            gsap.to(controls.target, {
-                                x: focusedCameraState.target.x,
-                                y: focusedCameraState.target.y,
-                                z: focusedCameraState.target.z,
-                                duration: SNAP_BACK_DURATION,
-                                ease: SNAP_BACK_EASING
-                            });
-                        } else {
-                            gsap.to(camera.position, {
-                                x: initialCameraState.position.x,
-                                y: initialCameraState.position.y,
-                                z: initialCameraState.position.z,
-                                duration: SNAP_BACK_DURATION,
-                                ease: SNAP_BACK_EASING
-                            });
-                            gsap.to(controls.target, {
-                                x: initialCameraState.target.x,
-                                y: initialCameraState.target.y,
-                                z: initialCameraState.target.z,
-                                duration: SNAP_BACK_DURATION,
-                                ease: SNAP_BACK_EASING
-                            });
-                        }
+                        // NEW: Define the callback to fade the text back in
+                        const onSnapBackComplete = () => {
+                            if (leftTextObject && rightTextObject) {
+                                gsap.to([leftTextObject.element.style, rightTextObject.element.style], {
+                                    opacity: 1,
+                                    duration: 0.5,
+                                    ease: "power2.out"
+                                });
+                            }
+                        };
+
+                        const targetState = isFocused ? focusedCameraState : initialCameraState;
+
+                        // Animate camera position and add the onComplete callback
+                        gsap.to(camera.position, {
+                            x: targetState.position.x,
+                            y: targetState.position.y,
+                            z: targetState.position.z,
+                            duration: SNAP_BACK_DURATION,
+                            ease: SNAP_BACK_EASING,
+                            onComplete: onSnapBackComplete // This will run after the tween is finished
+                        });
+
+                        // Animate the target separately without a callback
+                        gsap.to(controls.target, {
+                            x: targetState.target.x,
+                            y: targetState.target.y,
+                            z: targetState.target.z,
+                            duration: SNAP_BACK_DURATION,
+                            ease: SNAP_BACK_EASING
+                        });
+
                     } else {
                         handleSceneClick(event);
                     }
@@ -1641,6 +1938,16 @@
             }
         });
 
+        // --- MODIFIED: Add event listeners for all ellipse controls ---
+        document.getElementById('ellipse-color-picker').addEventListener('input', updateEllipseEffect);
+        document.getElementById('ellipse-diameter-x-slider').addEventListener('input', updateEllipseEffect);
+        document.getElementById('ellipse-diameter-y-slider').addEventListener('input', updateEllipseEffect);
+        document.getElementById('ellipse-thickness-slider').addEventListener('input', updateEllipseEffect);
+        document.getElementById('ellipse-softness-slider').addEventListener('input', updateEllipseEffect);
+        document.getElementById('ellipse-offset-x-slider').addEventListener('input', updateEllipseEffect);
+        document.getElementById('ellipse-offset-y-slider').addEventListener('input', updateEllipseEffect);
+
+
         noiseOpacitySlider.addEventListener('input', (event) => {
             noiseLayer.style.opacity = event.target.value;
         });
@@ -1711,6 +2018,16 @@
                     .to(targetKey.position, { y: initialY, duration: 0.2, ease: "elastic.out(1, 0.5)" });
             }
         });
+
+        // --- MODIFIED: Event listeners for the grid controls ---
+        gridWidthSlider.addEventListener('input', updateCustomGrid);
+        gridHeightSlider.addEventListener('input', updateCustomGrid);
+        squareSizeSlider.addEventListener('input', updateCustomGrid);
+        gridThicknessSlider.addEventListener('input', updateCustomGrid);
+        gridColorPicker.addEventListener('input', updateCustomGrid);
+        gridOffsetXSlider.addEventListener('input', updateCustomGrid);
+        gridOffsetZSlider.addEventListener('input', updateCustomGrid);
+
 
         // --- UPDATED: loadGLBModel with new default light state ---
         function loadGLBModel(url) {
