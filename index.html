@@ -86,7 +86,7 @@
             height: 200%;
             pointer-events: none; /* Make it click-through */
             z-index: 50; /* Above 3D scene and CSS3D, below UI */
-            opacity: 0.07; /* Default opacity */
+            opacity: 0.05; /* Default opacity */
             background: url("data:image/svg+xml,%3Csvg viewBox='0 0 1024 1024' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
             animation: animateNoise 1s steps(4) infinite; /* Default speed */
         }
@@ -126,11 +126,11 @@
         #right-text-container {
             display: flex;
             flex-direction: column;
-            text-align: left;
-            gap:22px;
+            text-align: right;
+            gap:24px;
         }
         #right-text-container a {
-            font-size: 42px;
+            font-size: 40px;
             font-weight: 700;
             text-decoration: none;
             color: #ACACAC;
@@ -138,7 +138,7 @@
             transition: transform 0.2s ease-out, color 0.2s ease-in-out;
         }
         #right-text-container a:hover {
-            transform: translateX(10px);
+            transform: translateX(-15px);
             color: white;
         }
     </style>
@@ -181,7 +181,7 @@
             </p>
         </div>
 
-        <div class="ml-auto flex items-start space-x-2 pointer-events-auto" style="display:block;">
+        <div class="ml-auto flex items-start space-x-2 pointer-events-auto" style="display:none;">
             <button id="toggle-ui-btn" class="p-2 rounded-lg bg-white/20 backdrop-blur-sm shadow hover:bg-white/30 transition-colors">
                 <svg id="eye-icon-open" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-eye"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                 <svg id="eye-icon-closed" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-eye-off hidden"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
@@ -195,7 +195,7 @@
                 </div>
                  <div class="flex flex-col items-center space-y-1 bg-white/20 backdrop-blur-sm p-3 rounded-lg shadow">
                     <label for="noise-opacity-slider" id="noise-opacity-label" class="text-sm font-medium text-gray-300">Noise Opacity</label>
-                    <input type="range" id="noise-opacity-slider" min="0" max="0.5" step="0.01" value="0.07" class="w-24 h-2 bg-gray-500 rounded-lg appearance-none cursor-pointer">
+                    <input type="range" id="noise-opacity-slider" min="0" max="0.5" step="0.01" value="0.04" class="w-24 h-2 bg-gray-500 rounded-lg appearance-none cursor-pointer">
                     <label for="noise-speed-slider" id="noise-speed-label" class="text-sm font-medium text-gray-300 mt-2">Animation Speed</label>
                     <input type="range" id="noise-speed-slider" min="0.1" max="2" step="0.1" value="1" class="w-24 h-2 bg-gray-500 rounded-lg appearance-none cursor-pointer">
                 </div>
@@ -311,7 +311,7 @@
         const ORBIT_LIMIT_LEFT = 16;
         const ORBIT_LIMIT_RIGHT = 48;
         const ORBIT_LIMIT_UP = 38;
-        const ORBIT_LIMIT_DOWN = -15;
+        const ORBIT_LIMIT_DOWN = -10;
         const SNAP_BACK_DURATION = 0.5;
         const SNAP_BACK_EASING = "power2.out";
 
@@ -392,23 +392,48 @@
         const HDRI_URL = 'hdri/nightsky.hdr';
         const HDRI_INTENSITY = 1.5;
 
+
+
         // --- Grid Controls ---
-        const GRID_WIDTH = 30;
-        const GRID_HEIGHT = 30;
+      const GRID_WIDTH = 30;
+      const GRID_HEIGHT = 30;
+      const SQUARE_SIZE = 0.66;
+      const GRID_THICKNESS = 0.02;
+      const GRID_COLOR = '#404040';
+      const GRID_OFFSET_X = 0.0;
+      const GRID_OFFSET_Z = -4.8;
+
+      // --- NEW: Ellipse Controls --
+      const ELLIPSE_COLOR = '#696969';
+      const ELLIPSE_DIAMETER_X = 0.271;
+      const ELLIPSE_DIAMETER_Y = 0.266;
+      const ELLIPSE_THICKNESS = 0.40;
+      const ELLIPSE_SOFTNESS = 0.28;
+      const ELLIPSE_OFFSET_X = 0.0;
+      const ELLIPSE_OFFSET_Y = 0.022;
+
+
+
+        /* old controls
+        // --- Grid Controls ---
+        const GRID_WIDTH = 27;
+        const GRID_HEIGHT = 23;
         const SQUARE_SIZE = 0.66;
         const GRID_THICKNESS = 0.02;
         const GRID_COLOR = '#404040';
         const GRID_OFFSET_X = 0.0;
-        const GRID_OFFSET_Z = -4.8;
+        const GRID_OFFSET_Z = -2.8;
 
-        // --- NEW: Ellipse Controls --
+        // --- NEW: Ellipse Controls ---
         const ELLIPSE_COLOR = '#696969';
-        const ELLIPSE_DIAMETER_X = 0.271;
-        const ELLIPSE_DIAMETER_Y = 0.266;
+        const ELLIPSE_DIAMETER_X = 0.24;
+        const ELLIPSE_DIAMETER_Y = 0.2;
         const ELLIPSE_THICKNESS = 0.40;
         const ELLIPSE_SOFTNESS = 0.28;
         const ELLIPSE_OFFSET_X = 0.0;
-        const ELLIPSE_OFFSET_Y = 0.022;
+        const ELLIPSE_OFFSET_Y = 0.01;
+
+        */
 
         // --- Plane Controls ---
         const INTERACTIVE_URL = 'OS/index.html';
@@ -772,14 +797,14 @@
             // --- Create and position 3D text objects ---
             const leftTextElement = document.getElementById('left-text-container');
             leftTextObject = new CSS3DObject(leftTextElement); // MODIFIED: Use top-level variable
-            leftTextObject.position.set(-4.3, 0.01, 2);
+            leftTextObject.position.set(4.8, 0.01, -7.5)
             leftTextObject.rotation.x = -Math.PI / 2;
             leftTextObject.scale.set(0.007, 0.007, 0.007);
             scene.add(leftTextObject);
 
             const rightTextElement = document.getElementById('right-text-container');
             rightTextObject = new CSS3DObject(rightTextElement); // MODIFIED: Use top-level variable
-            rightTextObject.position.set(4.8, 0.01, -7.5);
+            rightTextObject.position.set(-4.3, 0.01, 2);
             rightTextObject.rotation.x = -Math.PI / 2;
             rightTextObject.scale.set(0.007, 0.007, 0.007);
             scene.add(rightTextObject);
