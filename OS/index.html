@@ -423,7 +423,7 @@
         .image-nav-arrow.prev-arrow { left: 16px; }
         .image-nav-arrow.next-arrow { right: 16px; }
         .image-nav-arrow:disabled { opacity: 0.2; cursor: none; pointer-events: none; }
-        
+
         /* --- Dev Button Style --- */
         .dev-button {
             padding: 10px 15px;
@@ -577,8 +577,8 @@
 
     // --- BOOT SEQUENCE CONFIG ---
     const bootConfig = {
-        fadeToBlackDurationMs: 180, fadeInDelayMs: 200, bootScreenPaddingY: "0.1rem",
-        bootScreenPaddingX: "0.1rem", bootScreenBorderWidth: "2px", bootScreenContentPaddingTop: "0rem",
+        fadeToBlackDurationMs: 180, fadeInDelayMs: 200, bootScreenPaddingY: "2rem",
+        bootScreenPaddingX: "2rem", bootScreenBorderWidth: "2px", bootScreenContentPaddingTop: "0rem",
         bootScreenContentPaddingRight: "1rem", bootScreenContentPaddingBottom: "1rem",
         bootScreenContentPaddingLeft: "4.5rem", bootScreenFontSize: "16px", fairBootLogoSize: "120px",
         bootScreenLineHeight: "2", bootSequenceLineDelayMs: 25, bootSequenceRandomnessMs: 20,
@@ -644,7 +644,7 @@
             blackOverlay.addEventListener('transitionend', () => {
                 blackOverlay.style.pointerEvents = 'none';
                 isBooting = false;
-                
+
             }, { once: true });
         }, 200);
     }
@@ -724,9 +724,9 @@
     function beginBootUp() {
         const bootScreenWrapper = document.getElementById('bootScreenWrapper');
         const bootScreen = document.getElementById('bootScreen');
-        
+
         // --- FIX: Ensure the boot screen is visible before animating ---
-        bootScreenWrapper.style.display = 'flex'; 
+        bootScreenWrapper.style.display = 'flex';
 
         bootScreenWrapper.style.transitionDuration = `${bootConfig.fadeToBlackDurationMs}ms`;
         bootScreenWrapper.classList.add('visible');
