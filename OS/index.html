@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Y2K OS UI - Dynamic</title>
+    <title>Y2K OS UI - Integrated Boot</title>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         /* --- Base Styles & Y2K Theme --- */
         :root {
@@ -64,11 +65,10 @@
             transform: scale(0.8);
         }
 
-        #boot-iframe, #black-overlay, #vignette-overlay {
+        #black-overlay, #vignette-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             border: none;
         }
-        #boot-iframe { z-index: 99999; transition: opacity var(--boot-fade-duration) ease-in; opacity: 1; }
         #black-overlay { z-index: 99998; background-color: #000; transition: opacity var(--black-overlay-fade-duration) ease-out; opacity: 1; }
         #vignette-overlay {
             pointer-events: none;
@@ -79,17 +79,59 @@
             background-size: 100% 100%, auto;
         }
 
+        /* --- Integrated Boot Screen Styles --- */
+        #bootScreenWrapper {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            padding-top: var(--boot-screen-padding-y); padding-bottom: var(--boot-screen-padding-y);
+            padding-left: var(--boot-screen-padding-x); padding-right: var(--boot-screen-padding-x);
+            z-index: 100000; opacity: 0; pointer-events: none;
+            transition: opacity 400ms ease-in-out; display: flex;
+            justify-content: center; align-items: center; box-sizing: border-box;
+        }
+        #bootScreenWrapper.visible { opacity: 1; pointer-events: auto; }
+        #bootScreen {
+            background-color: black; color: #c0c0c0;
+            font-family: 'Press Start 2P', cursive; font-size: var(--boot-screen-font-size);
+            border: var(--boot-screen-border-width) solid #c0c0c0;
+            overflow: hidden; white-space: pre-wrap; word-wrap: break-word; box-sizing: border-box;
+        }
+        #bootScreenContent {
+            height: 100%; padding-top: var(--boot-screen-content-padding-top);
+            padding-right: var(--boot-screen-content-padding-right); padding-bottom: var(--boot-screen-content-padding-bottom);
+            padding-left: var(--boot-screen-content-padding-left);
+            opacity: 0; transition: opacity 200ms ease-in-out;
+            overflow-y: auto; box-sizing: border-box;
+        }
+        #bootText { margin: 0; font-family: inherit; line-height: var(--boot-screen-line-height); }
+        .blinking-cursor { display: none; animation: blink 1s step-end infinite; }
+        @keyframes blink { from, to { color: transparent; } 50% { color: #c0c0c0; } }
+
+        #fairBootScreen {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background-color: #000; z-index: 100001; display: none;
+            justify-content: center; align-items: center; color: white;
+            font-family: 'Inter', sans-serif;
+        }
+        #fairBootContent { display: flex; flex-direction: column; justify-content: center; align-items: center; opacity: 0; }
+        .fair-logo { font-size: var(--fair-boot-logo-size); font-weight: 200; letter-spacing: 2px; }
+        .fair-logo span { font-weight: 700; }
+        #loadingBarContainer {
+            width: var(--fair-boot-loader-track-width); height: var(--fair-boot-loader-track-height);
+            margin-top: 2rem; border: 1px solid #555; border-radius: 2px;
+            background-color: #1a1a1a; overflow: hidden; position: relative;
+        }
+        #loadingMarquee { position: absolute; height: 100%; display: flex; }
+        .loading-block {
+            width: var(--fair-boot-loader-block-width); height: 100%;
+            background: linear-gradient(90deg, #0052a2, #0078d7, #39a1ff);
+            margin: 0 1px; border-radius: 1px;
+        }
+
+        /* --- OS UI Styles --- */
         .desktop-icons {
-            position: absolute;
-            top: 30px;
-            left: 30px;
-            display: flex;
-            flex-direction: column;
-            flex-wrap: wrap;
-            align-content: flex-start;
-            gap: 20px 40px; /* Row gap, Column gap */
-            height: calc(100% - 100px); /* Full height minus taskbar and padding */
-            z-index: 1;
+            position: absolute; top: 30px; left: 30px; display: flex;
+            flex-direction: column; flex-wrap: wrap; align-content: flex-start;
+            gap: 20px 40px; height: calc(100% - 100px); z-index: 1;
         }
         .desktop-icon {
             display: flex; flex-direction: column; align-items: center; text-align: center;
@@ -151,58 +193,30 @@
 
 
         .close-circle-btn, .maximize-circle-btn {
-            width: 24px; /* Smaller width for circle */
-            height: 24px; /* Smaller height for circle */
-            border-radius: 50%; /* Make them circular */
-            margin-left: 10px; /* Adjust margin if needed */
-            border: 3px solid var(--window-border-color); /* Keep the border */
-            display: flex; /* Ensure flex for centering content */
-            align-items: center;
-            justify-content: center;
-            font-size: 24px; /* Adjust font size for the symbols */
-            line-height: 1; /* Ensure single line-height for vertical centering */
-            font-weight: bold;
-            color: var(--text-color); /* Default text color, will be overridden by specific ones */
+            width: 24px; height: 24px; border-radius: 50%;
+            margin-left: 10px; border: 3px solid var(--window-border-color);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 24px; line-height: 1; font-weight: bold;
+            color: var(--text-color);
         }
 
-        .close-circle-btn {
-            background-color: #e18350; /* Red color */
-            color: white; /* White cross */
-        }
-        .close-circle-btn::before {
-            content: ''; /* Cross symbol */
-        }
-
-        .maximize-circle-btn {
-            background-color: #e5bf29; /* Yellow color */
-            color: var(--text-color); /* Black border symbol if you add one */
-        }
-
-        .close-circle-btn:hover {
-              background-color: #ec9565; /* Darker red on hover */
-          }
-          .maximize-circle-btn:hover {
-              background-color: #f7d346; /* Darker yellow on hover */
-          }
-          .close-circle-btn:active, .maximize-circle-btn:active {
-              border-style: solid; /* Standard Y2K active effect */
-          }
-
+        .close-circle-btn { background-color: #e18350; color: white; }
+        .close-circle-btn::before { content: ''; }
+        .maximize-circle-btn { background-color: #e5bf29; color: var(--text-color); }
+        .close-circle-btn:hover { background-color: #ec9565; }
+        .maximize-circle-btn:hover { background-color: #f7d346; }
+        .close-circle-btn:active, .maximize-circle-btn:active { border-style: solid; }
 
         .content {
             flex-grow: 1; padding: 20px; overflow: auto; font-size: 28px;
-            position: relative;
-            background: white;
+            position: relative; background: white;
         }
         .content img, .content video { max-width: 100%; height: auto; }
         .content iframe { width: 100%; height: 100%; border: none; }
 
         .window-theme-dark .title-bar {
-            background-color: #1a1a1a;
-            color: #ffffff;
-            border-bottom: 4px solid #444444;
+            background-color: #1a1a1a; color: #ffffff; border-bottom: 4px solid #444444;
         }
-
         .checkerboard {
             background-color: #fff;
             background-image:
@@ -232,49 +246,34 @@
         .start-menu.show { display: block; }
         .start-menu-list { list-style: none; padding: 12px; margin: 0; }
         .start-menu-item {
-            padding: 16px 20px; font-size: 32px;   display: flex; align-items: center; gap: 15px;
-            position: relative; /* For submenu positioning */
+            padding: 16px 20px; font-size: 32px; display: flex; align-items: center; gap: 15px;
+            position: relative;
         }
         .start-menu-item:hover { background-color: var(--theme-blue); color: var(--text-color); }
         .start-menu-separator { height: 4px; background-color: var(--window-border-color); margin: 12px 0; }
         .start-menu-item-icon { width: 32px; height: 32px; }
         .submenu-arrow {
-            margin-left: auto;
-            border: solid var(--text-color);
-            border-width: 0 4px 4px 0;
-            display: inline-block;
-            padding: 4px;
-            transform: rotate(-45deg);
+            margin-left: auto; border: solid var(--text-color);
+            border-width: 0 4px 4px 0; display: inline-block;
+            padding: 4px; transform: rotate(-45deg);
         }
         .submenu {
-            display: none;
-            position: absolute;
-            left: calc(100% + var(--submenu-offset-x));
-            top: var(--submenu-offset-y);
-            width: 300px;
-            background-color: var(--start-menu-bg);
-            border: 4px solid var(--window-border-color);
-            list-style: none;
-            padding: 12px;
-            margin: 0;
-            border-radius: 10px;
+            display: none; position: absolute; left: calc(100% + var(--submenu-offset-x));
+            top: var(--submenu-offset-y); width: 300px; background-color: var(--start-menu-bg);
+            border: 4px solid var(--window-border-color); list-style: none;
+            padding: 12px; margin: 0; border-radius: 10px;
         }
-        .submenu.visible {
-            display: block;
-        }
-
+        .submenu.visible { display: block; }
 
         .taskbar { flex-grow: 1; display: flex; align-items: center; gap: 12px; margin: 0 12px; overflow: hidden; }
         .taskbar-item {
             padding: 5px 16px; max-width: 300px; gap: 12px; font-size: 28px; background-color: var(--window-bg-color);
             border: 2px solid var(--window-border-color); color: var(--text-color); white-space: nowrap;
-              flex-shrink: 1; display: flex; align-items: center; border-radius: 3px;
+            flex-shrink: 1; display: flex; align-items: center; border-radius: 3px;
         }
         .taskbar-item.active { background-color: var(--taskbar-item-active-bg); border-style: inset; font-weight: bold; }
         .taskbar-icon { width: 28px; height: 28px; }
-        .taskbar-icon img, .taskbar-icon svg{
-          width: 28px; height: 28px;
-        }
+        .taskbar-icon img, .taskbar-icon svg{ width: 28px; height: 28px; }
 
         .notification-area {
             display: flex; align-items: center; gap: 20px; padding: 0 12px;
@@ -282,152 +281,63 @@
             border-left: 4px solid #aaa;
         }
         #notification-icons-container { display: flex; align-items: center; gap: 20px; }
-        .notification-icon {   }
+        .notification-icon { }
         .notification-icon.hidden { display: none; }
         .notification-icon svg, .notification-icon img { width: 36px; height: 36px; }
         #clock { font-size: 32px; }
 
+        /* Other component styles... (Music Player, Storage, Showcase, etc.) */
         .music-player {
             display: flex; flex-direction: column; justify-content: center; align-items: center;
             gap: 20px; background-color: #fdf5e6; padding: 20px; box-sizing: border-box;
             color: #444; height: 100%; border-radius: 5px;
         }
         .song-info { display: flex; flex-direction: column; align-items: center; gap: 0px; text-align: center; }
-        .album-art {
-            position: relative;
-            width: 160px;
-            height: 160px;
-            margin-bottom: 12px;
-          }
-          .album-art-image,
-          .cd-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-          }
-          .album-art-image {
-            width: 72px;
-            height: 72px;
-            border-radius: 50%;
-            border: 4px solid #00000075;
-            object-fit: cover;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 2;
-          }
-          .cd-overlay {
-            z-index: 1;
-          }
+        .album-art { position: relative; width: 160px; height: 160px; margin-bottom: 12px; }
+        .album-art-image, .cd-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        .album-art-image {
+            width: 72px; height: 72px; border-radius: 50%; border: 4px solid #00000075;
+            object-fit: cover; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 2;
+        }
+        .cd-overlay { z-index: 1; }
         .song-title { font-size: 32px; font-weight: bold;  margin: 10px;}
         .artist-name { font-size: 24px; margin: 0;}
         .player-controls { display: flex; justify-content: center; align-items: center; gap: 30px; width: 100%; }
-        .player-button { background: none; border: none;   padding: 0; display: flex; align-items: center; justify-content: center; }
+        .player-button { background: none; border: none; padding: 0; display: flex; align-items: center; justify-content: center; }
         .player-button svg { width: 48px; height: 48px; fill: #4f3300; }
         .player-button.play-pause svg { width: 64px; height: 64px; }
 
-        .storage-body-wrapper {
-            display: flex;
-            flex-direction: row;
-            flex-grow: 1;
-            overflow: hidden;
-        }
+        .storage-body-wrapper { display: flex; flex-direction: row; flex-grow: 1; overflow: hidden; }
         .storage-sidebar {
-            width: 220px;
-            flex-shrink: 0;
-            border-right: 2px solid #88888841;
-            padding: 20px;
-            padding-top: 40px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 20px;
-            background-color: #e5e5e5;
-            overflow-y: auto;
-            border-radius: 0 0 0 10px;
+            width: 220px; flex-shrink: 0; border-right: 2px solid #88888841; padding: 20px;
+            padding-top: 40px; display: flex; flex-direction: column; align-items: center;
+            gap: 20px; background-color: #e5e5e5; overflow-y: auto; border-radius: 0 0 0 10px;
         }
-        .sidebar-icon-large {
-            width: 128px;
-            height: 128px;
-            margin-bottom: 10px
-        }
-        .sidebar-icon-large svg, .sidebar-icon-large img {
-            width: 100%;
-            height: 100%;
-        }
-        .sidebar-separator {
-            width: 100%;
-            height: 2px;
-            background-color: var(--window-border-color);
-            opacity: 0.2;
-            display: none;
-        }
-        .sidebar-details {
-            font-size: 26px;
-            text-align: left;
-            word-wrap: break-word;
-            width: 90%;
-        }
-        .storage-main-pane {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
+        .sidebar-icon-large { width: 128px; height: 128px; margin-bottom: 10px }
+        .sidebar-icon-large svg, .sidebar-icon-large img { width: 100%; height: 100%; }
+        .sidebar-separator { width: 100%; height: 2px; background-color: var(--window-border-color); opacity: 0.2; display: none; }
+        .sidebar-details { font-size: 26px; text-align: left; word-wrap: break-word; width: 90%; }
+        .storage-main-pane { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; }
         .storage-container {
-            display: flex;
-            flex-direction: row;
-            flex-wrap: wrap;
-            align-content: flex-start;
-            gap: 20px;
-            padding: 20px;
-            flex-grow: 1;
-            overflow-y: auto;
-            background: white;
-            border-radius: 0 0 8px 0;
+            display: flex; flex-direction: row; flex-wrap: wrap; align-content: flex-start;
+            gap: 20px; padding: 20px; flex-grow: 1; overflow-y: auto; background: white; border-radius: 0 0 8px 0;
         }
         .storage-nav {
-            display: flex;
-            align-items: center;
-            padding: 8px 12px;
-            border-bottom: 2px solid #888;
-            background-color: #c0c0c0;
-            gap: 10px;
-            flex-shrink: 0;
+            display: flex; align-items: center; padding: 8px 12px; border-bottom: 2px solid #888;
+            background-color: #c0c0c0; gap: 10px; flex-shrink: 0;
         }
         .address-bar-container {
-            display: flex;
-            align-items: center;
-            background-color: white;
-            border: 2px solid #888;
-            padding: 4px 8px;
-            width: 100%;
-            pointer-events: none;
-            border-radius: 5px;
+            display: flex; align-items: center; background-color: white; border: 2px solid #888;
+            padding: 4px 8px; width: 100%; pointer-events: none; border-radius: 5px;
         }
-        .address-bar-label {
-             font-size: 28px;
-             color: #555;
-             margin-right: 8px;
-             text-transform: capitalize;
-        }
+        .address-bar-label { font-size: 28px; color: #555; margin-right: 8px; text-transform: capitalize; }
         .address-bar {
-            width: 100%;
-            font-family: 'VT323', monospace;
-            font-size: 28px;
-            border: none;
-            background: transparent;
-            outline: none;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            line-height: 1.2;
+            width: 100%; font-family: 'VT323', monospace; font-size: 28px; border: none;
+            background: transparent; outline: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2;
         }
         .storage-icon {
             display: flex; flex-direction: column; align-items: center; text-align: center;
-              width: 150px; padding: 8px; border: 1px solid transparent;
+            width: 150px; padding: 8px; border: 1px solid transparent;
         }
         .storage-icon .icon-bg {
             width: 90px; height: 90px; margin-bottom: 12px; display: flex;
@@ -438,309 +348,124 @@
         .storage-icon.selected span { background-color: var(--selection-color); color: #fff; }
         .back-button {
             background: var(--window-bg-color); border: 2px solid var(--window-border-color);
-            border-radius: 5px; padding: 5px;
-            display: flex; align-items: center; justify-content: center;
+            border-radius: 5px; padding: 5px; display: flex; align-items: center; justify-content: center;
         }
         .back-button svg { width: 24px; height: 24px; }
-
-        .window.dragging {
-            transition: none;
-        }
-
-        .title-bar-icon img,
-        .title-bar-icon svg {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-        }
+        .window.dragging { transition: none; }
+        .title-bar-icon img, .title-bar-icon svg { width: 100%; height: 100%; object-fit: contain; }
 
         /* --- Showcase Window Styles --- */
-        .showcase-container {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-            height: 100%;
-            padding: 16px;
-            box-sizing: border-box;
-            background-color: #e0e0e0;
-            border-radius: 6px;
-        }
-        .showcase-card {
-            display: flex;
-            gap: 32px;
-            padding: 24px;
-            background-color: var(--window-bg-color);
-            border: 2px solid #a0a0a0;
-            border-radius: 8px;
-        }
-        .showcase-card-image {
-            width: 180px;
-            height: 180px;
-            object-fit: cover;
-            border: 3px solid var(--window-border-color);
-            flex-shrink: 0;
-            border-radius: 4px;
-        }
-        .showcase-card-info {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-        .showcase-card-title {
-            font-size: 40px;
-            font-weight: bold;
-            margin: 0;
-        }
-        .showcase-card-desc {
-            font-size: 26px;
-            margin: 0;
-            flex-grow: 1;
-        }
+        .showcase-container { display: flex; flex-direction: column; gap: 16px; height: 100%; padding: 16px; box-sizing: border-box; background-color: #e0e0e0; border-radius: 6px; }
+        .showcase-card { display: flex; gap: 32px; padding: 24px; background-color: var(--window-bg-color); border: 2px solid #a0a0a0; border-radius: 8px; }
+        .showcase-card-image { width: 180px; height: 180px; object-fit: cover; border: 3px solid var(--window-border-color); flex-shrink: 0; border-radius: 4px; }
+        .showcase-card-info { display: flex; flex-direction: column; gap: 16px; }
+        .showcase-card-title { font-size: 40px; font-weight: bold; margin: 0; }
+        .showcase-card-desc { font-size: 26px; margin: 0; flex-grow: 1; }
         .showcase-card-button {
-            align-self: flex-start;
-            font-family: 'VT323', monospace;
-            font-size: 28px;
-            padding: 8px 24px;
-            border: 2px solid var(--window-border-color);
-            background-color: var(--theme-blue);
-            box-shadow: 4px 4px 0px rgba(0,0,0,0.6);
-            border-radius: 4px;
+            align-self: flex-start; font-family: 'VT323', monospace; font-size: 28px;
+            padding: 8px 24px; border: 2px solid var(--window-border-color);
+            background-color: var(--theme-blue); box-shadow: 4px 4px 0px rgba(0,0,0,0.6); border-radius: 4px;
         }
-        .showcase-card-button:active {
-            box-shadow: none;
-            transform: translate(4px, 4px);
-        }
+        .showcase-card-button:active { box-shadow: none; transform: translate(4px, 4px); }
 
-        /* --- Mock Browser Styles (Refactored for Text Objects) --- */
-        .mock-browser-container {
-            background-color: #f0f0f0;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-        }
-        .mock-browser-nav {
-            display: flex;
-            align-items: center;
-            padding: 8px 12px;
-            background-color: #c0c0c0;
-            border-bottom: 2px solid #888;
-            gap: 10px;
-            flex-shrink: 0;
-        }
-        .mock-browser-back-btn {
-            background: var(--window-bg-color);
-            border: 2px solid var(--window-border-color);
-            border-radius: 5px;
-            padding: 5px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .mock-browser-back-btn:disabled {
-            opacity: 0.5;
-            cursor: default;
-        }
-        .mock-browser-back-btn svg {
-            width: 24px;
-            height: 24px;
-        }
-        /* Style for text elements that replace inputs */
-        .text-input-replacement {
-            font-family: 'VT323', monospace;
-            background-color: white;
-            white-space: pre;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            box-sizing: border-box;
-        }
-        .mock-browser-address-bar {
-            width: 100%;
-            font-size: 28px;
-            border: 2px inset #888;
-            padding: 4px 8px;
-            outline: none;
-        }
-        .mock-browser-body {
-            flex-grow: 1;
-            background-color: white;
-            overflow: hidden;
-            position: relative;
-        }
-        .mock-search-page {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100%;
-            gap: 20px;
-        }
-        .mock-logo {
-            font-size: 96px;
-            font-weight: bold;
-        }
+        /* --- Mock Browser Styles --- */
+        .mock-browser-container { background-color: #f0f0f0; height: 100%; display: flex; flex-direction: column; }
+        .mock-browser-nav { display: flex; align-items: center; padding: 8px 12px; background-color: #c0c0c0; border-bottom: 2px solid #888; gap: 10px; flex-shrink: 0; }
+        .mock-browser-back-btn { background: var(--window-bg-color); border: 2px solid var(--window-border-color); border-radius: 5px; padding: 5px; display: flex; align-items: center; justify-content: center; }
+        .mock-browser-back-btn:disabled { opacity: 0.5; cursor: default; }
+        .mock-browser-back-btn svg { width: 24px; height: 24px; }
+        .text-input-replacement { font-family: 'VT323', monospace; background-color: white; white-space: pre; overflow: hidden; text-overflow: ellipsis; box-sizing: border-box; }
+        .mock-browser-address-bar { width: 100%; font-size: 28px; border: 2px inset #888; padding: 4px 8px; outline: none; }
+        .mock-browser-body { flex-grow: 1; background-color: white; overflow: hidden; position: relative; }
+        .mock-search-page { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100%; gap: 20px; }
+        .mock-logo { font-size: 96px; font-weight: bold; }
         .mock-logo .g, .results-logo .g { color: #4285F4; }
         .mock-logo .o1, .results-logo .o1 { color: #EA4335; }
         .mock-logo .o2, .results-logo .o2 { color: #FBBC05; }
         .mock-logo .l, .results-logo .l { color: #4285F4; }
         .mock-logo .e, .results-logo .e { color: #34A853; }
-
-        .mock-search-input {
-            width: 80%;
-            max-width: 580px;
-            font-size: 28px;
-            padding: 10px;
-            border: 2px solid #a0a0a0;
-            min-height: 52px; /* Prevent collapse when empty */
-            position: relative;
-            outline: none;
-        }
-        /* Blinking cursor effect for the mock search input */
+        .mock-search-input { width: 80%; max-width: 580px; font-size: 28px; padding: 10px; border: 2px solid #a0a0a0; min-height: 52px; position: relative; outline: none; }
         .mock-search-input.typing::after {
-            content: '';
-            display: inline-block;
-            width: 2px;
-            height: 28px;
-            background-color: black;
-            animation: blink 1s infinite step-end;
-            margin-left: 2px;
-            vertical-align: middle;
+            content: ''; display: inline-block; width: 2px; height: 28px; background-color: black;
+            animation: blink 1s infinite step-end; margin-left: 2px; vertical-align: middle;
         }
-        @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0; }
-        }
-
-        .mock-search-button {
-            font-family: 'VT323', monospace;
-            font-size: 28px;
-            padding: 8px 24px;
-            border: 2px solid var(--window-border-color);
-            background-color: #f0f0f0;
-        }
-        .mock-results-page {
-            display: none; /* Initially hidden */
-            flex-direction: column;
-            height: 100%;
-        }
-        .results-header {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            padding: 15px 20px;
-            border-bottom: 1px solid #ebebeb;
-            flex-shrink: 0;
-        }
-        .results-logo {
-            font-size: 40px;
-            font-weight: bold;
-        }
-        .results-search-input {
-            width: 100%;
-            max-width: 600px;
-            font-size: 24px;
-            padding: 8px;
-            border: 2px solid #a0a0a0;
-            background-color: #f0f0f0;
-        }
-        .results-content {
-            padding: 20px;
-            overflow-y: auto;
-            flex-grow: 1;
-        }
-        .search-result-item {
-            margin-bottom: 24px;
-        }
-        .search-result-item a {
-            font-size: 32px;
-            color: #1a0dab;
-            text-decoration: underline;
-        }
-        .search-result-item .display-url {
-            font-size: 24px;
-            color: #006621;
-        }
-        .search-result-item .subtext {
-            font-size: 26px;
-            color: #545454;
-        }
-
+        @keyframes blink-cursor { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+        .mock-search-button { font-family: 'VT323', monospace; font-size: 28px; padding: 8px 24px; border: 2px solid var(--window-border-color); background-color: #f0f0f0; }
+        .mock-results-page { display: none; flex-direction: column; height: 100%; }
+        .results-header { display: flex; align-items: center; gap: 20px; padding: 15px 20px; border-bottom: 1px solid #ebebeb; flex-shrink: 0; }
+        .results-logo { font-size: 40px; font-weight: bold; }
+        .results-search-input { width: 100%; max-width: 600px; font-size: 24px; padding: 8px; border: 2px solid #a0a0a0; background-color: #f0f0f0; }
+        .results-content { padding: 20px; overflow-y: auto; flex-grow: 1; }
+        .search-result-item { margin-bottom: 24px; }
+        .search-result-item a { font-size: 32px; color: #1a0dab; text-decoration: underline; }
+        .search-result-item .display-url { font-size: 24px; color: #006621; }
+        .search-result-item .subtext { font-size: 26px; color: #545454; }
 
         /* --- Custom Scrollbar Styles --- */
-        * {
-          scrollbar-width: auto;
-          scrollbar-color: var(--taskbar-item-active-bg) var(--window-bg-color);
-        }
-        ::-webkit-scrollbar {
-          width: 20px;
-          height: 20px;
-        }
-        ::-webkit-scrollbar-track {
-          background: var(--window-bg-color);
-          border: 2px inset #a8a8a8;
-        }
-        ::-webkit-scrollbar-thumb {
-          background: var(--window-bg-color);
-          border: 2px outset #000;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-          background: #e8e8e8;
-        }
-        ::-webkit-scrollbar-thumb:active {
-            border-style: inset;
-        }
-        ::-webkit-scrollbar-corner {
-          background: var(--window-bg-color);
-        }
+        * { scrollbar-width: auto; scrollbar-color: var(--taskbar-item-active-bg) var(--window-bg-color); }
+        ::-webkit-scrollbar { width: 20px; height: 20px; }
+        ::-webkit-scrollbar-track { background: var(--window-bg-color); border: 2px inset #a8a8a8; }
+        ::-webkit-scrollbar-thumb { background: var(--window-bg-color); border: 2px outset #000; }
+        ::-webkit-scrollbar-thumb:hover { background: #e8e8e8; }
+        ::-webkit-scrollbar-thumb:active { border-style: inset; }
+        ::-webkit-scrollbar-corner { background: var(--window-bg-color); }
 
-        .pdf-iframe{
-          border-radius: 0 0 5px 5px;
-
-        }
+        .pdf-iframe{ border-radius: 0 0 5px 5px; }
 
         /* --- Image Viewer Arrow Styles --- */
         .image-nav-arrow {
-            position: absolute;
-            top: 50%;
-            transform: translateY(-50%);
-            background-color: rgba(0, 0, 0, 0.4);
-            color: white;
-            border: none;
+            position: absolute; top: 50%; transform: translateY(-50%); background-color: rgba(0, 0, 0, 0.4);
+            color: white; border: none; font-size: 24px; padding: 10px; padding-bottom: 12px;
+            cursor: none; z-index: 10; border-radius: 4px; width: 30px; height: 30px;
+            display: flex; align-items: center; justify-content: center; line-height: 1; font-family: monospace;
+        }
+        .image-nav-arrow:hover { background-color: rgba(0, 0, 0, 0.7); }
+        .image-nav-arrow.prev-arrow { left: 16px; }
+        .image-nav-arrow.next-arrow { right: 16px; }
+        .image-nav-arrow:disabled { opacity: 0.2; cursor: none; pointer-events: none; }
+        
+        /* --- Dev Button Style --- */
+        .dev-button {
+            padding: 10px 15px;
+            font-family: 'VT323', monospace;
             font-size: 24px;
-            padding: 10px;
-            padding-bottom: 12px;
-            cursor: none;
-            z-index: 10;
-            border-radius: 4px;
-            width: 30px;
-            height: 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            line-height: 1;
-            font-family: monospace; /* For better arrow rendering */
+            background-color: #00ff00;
+            color: black;
+            border: 2px solid black;
+            cursor: pointer;
         }
-        .image-nav-arrow:hover {
-            background-color: rgba(0, 0, 0, 0.7);
-        }
-        .image-nav-arrow.prev-arrow {
-            left: 16px;
-        }
-        .image-nav-arrow.next-arrow {
-            right: 16px;
-        }
-        .image-nav-arrow:disabled {
-            opacity: 0.2;
-            cursor: none;
-            pointer-events: none;
-        }
-
-
     </style>
 </head>
 <body>
-    <iframe id="boot-iframe" src="boot/index.html"></iframe>
-    <div id="black-overlay"></div>
+    <!-- Dev Buttons -->
+    <div id="dev-controls" style="position: fixed; top: 20px; left: 20px; z-index: 100002; display: flex; flex-direction: column; gap: 10px;">
+        <button id="dev-boot-button" class="dev-button" style="display: none;">Start Boot</button>
+        <button id="dev-complete-button" class="dev-button" style="display: none;">Complete Boot</button>
+    </div>
 
+    <!-- Boot Screen Elements -->
+    <div id="bootScreenWrapper">
+        <div id="bootScreen">
+            <div id="bootScreenContent">
+                <pre id="bootText"></pre>
+                <div id="cursor" class="blinking-cursor">_</div>
+            </div>
+        </div>
+    </div>
+    <div id="fairBootScreen">
+        <div id="fairBootContent">
+            <div class="fair-logo">
+                fair<span>OS</span>
+            </div>
+            <div id="loadingBarContainer">
+                <div id="loadingMarquee"></div>
+            </div>
+        </div>
+    </div>
+    <audio id="boot-sound" src="boot/boot.mp3" preload="auto"></audio>
+
+    <!-- Main OS Elements -->
+    <div id="black-overlay"></div>
     <div id="os-container">
         <div id="vignette-overlay"></div>
         <div id="desktop-icons-container" class="desktop-icons"></div>
@@ -760,6 +485,7 @@
     </div>
     <div id="custom-cursor"></div>
 
+    <!-- Templates -->
     <template id="checkerboard-template">
         <div class="content checkerboard" style="height: 100%;"></div>
     </template>
@@ -772,15 +498,12 @@
             </button>
         </div>
     </template>
-
     <template id="music-player-template">
         <div class="music-player">
             <div class="song-info">
               <div class="album-art">
                   <img class="cd-overlay" src="openAssets/albumArts/baseCD.png" >
                   <img class="album-art-image" src="openAssets/albumArts/1.jpg" alt="Album Art">
-
-
               </div>
                 <p class="song-title">lofi hip hop radio</p>
                 <p class="artist-name">Lofi Girl</p>
@@ -813,7 +536,6 @@
             })();
         </script>
     </template>
-
     <template id="mock-browser-template">
         <div class="mock-browser-container">
             <div class="mock-browser-nav">
@@ -846,28 +568,203 @@
     </template>
 
     <script>
+    // --- GLOBAL SETTINGS ---
+    const AUTO_BOOT_ON_LOAD = false; // Set to false to trigger boot manually via message
     const OS_CONFIG_URL = "";
-    const CUSTOM_LOADER_URL = ""; // <-- Add your custom loader GIF/image URL here
-    const SUBMENU_OFFSET_X = 12; // Horizontal offset in pixels
-    const SUBMENU_OFFSET_Y = -66; // Vertical offset in pixels
+    const CUSTOM_LOADER_URL = "";
+    const SUBMENU_OFFSET_X = 12;
+    const SUBMENU_OFFSET_Y = -66;
 
-    const ICON_URLS = {
-        computer: "icons/computer.png",
-        documents: "icons/documents.png",
-        folder: "icons/folder.png",
-        recycleBin: "icons/recycleBin.png",
-        internet: "icons/internet.png",
-        screenshot: "",
-        imageFile: "icons/imageFile.png",
-        pdfFile: "",
-        google: "",
-        linkedin: "icons/imageFile.png",
-        figma: "icons/figma.png",
-        music: "icons/music.png",
-        workfile: "icons/workfile.png",
-        default: ""
+    // --- BOOT SEQUENCE CONFIG ---
+    const bootConfig = {
+        fadeToBlackDurationMs: 180, fadeInDelayMs: 200, bootScreenPaddingY: "0.1rem",
+        bootScreenPaddingX: "0.1rem", bootScreenBorderWidth: "2px", bootScreenContentPaddingTop: "0rem",
+        bootScreenContentPaddingRight: "1rem", bootScreenContentPaddingBottom: "1rem",
+        bootScreenContentPaddingLeft: "4.5rem", bootScreenFontSize: "16px", fairBootLogoSize: "120px",
+        bootScreenLineHeight: "2", bootSequenceLineDelayMs: 25, bootSequenceRandomnessMs: 20,
+        bootScreenInitialSize: '40px', bootScreenAnimateDurationMs: 300,
+        bootScreenContentFadeInDurationMs: 200, bootScreenAnimateSteps: 6,
+        fairBootTransitionDelayMs: 200, fairBootContentFadeInDurationMs: 500,
+        fairBootContentFadeInSteps: 10, fairBootLoaderTrackWidth: "300px",
+        fairBootLoaderTrackHeight: "22px", fairBootLoaderBlockWidth: "12px",
+        fairBootLoaderBlockCount: 5, fairBootLoaderMarqueeDurationMs: 1500,
+        fairBootLoaderMarqueeSteps: 12, finishMessageDelayMs: 450,
     };
 
+    const bootLines = [
+        'Award Modular BIOS v4.51PGM, An Energy Star Ally', 'Copyright (C) 1984-97, Award Software, Inc.', '',
+        'Gemini Retro-Computing BIOS v2.0', 'Checking System Health...', 'CPU Core Voltage ..... 2.8 V',
+        '<CPU ID:GEMINI-2024-PRO>', 'Memory Test .......... 32768K OK', '', 'Award Plug and Play BIOS Extension v1.0A',
+        'Detecting IDE Primary Master ... VFS_WORK_FILES', 'Detecting IDE Primary Slave  ... 3D_RENDERER_v3.1',
+        'Detecting IDE Secondary Master ... INTERACTIVE_ENV', '', 'Initializing Plug and Play Cards... OK',
+        'Mouse Initialized...', '', 'Loading Creative DOS Multimedia Architecture (v1.00)...',
+        'Decompressing Work Files... OK', 'Calculating 3D Vectors... OK', 'Compiling Pixel Shaders... OK',
+        'Establishing Connection to Retro-Verse... OK', '', 'Starting MS-DOS...',
+    ];
+
+    // --- BOOT SEQUENCE FUNCTIONS ---
+    function animateStutter(element, properties, durationMs, steps, onComplete) {
+        let currentStep = 0;
+        const stepDuration = durationMs / steps;
+        const intervalId = setInterval(() => {
+            currentStep++;
+            if (currentStep > steps) {
+                clearInterval(intervalId);
+                for (const prop of properties) {
+                    element.style[prop.name] = prop.endValue + (prop.unit || '');
+                }
+                if (onComplete) onComplete();
+                return;
+            }
+            for (const prop of properties) {
+                const valueRange = prop.endValue - prop.startValue;
+                const increment = valueRange / steps;
+                const currentValue = prop.startValue + (increment * currentStep);
+                if (prop.name === 'transform') {
+                    element.style.transform = `scale(${currentValue})`;
+                } else {
+                    element.style[prop.name] = currentValue + (prop.unit || '');
+                }
+            }
+        }, stepDuration);
+    }
+
+    function completeBootProcess() {
+        const fairBootScreen = document.getElementById('fairBootScreen');
+        const blackOverlay = document.getElementById('black-overlay');
+
+        fairBootScreen.style.transition = 'opacity 0.5s ease-out';
+        fairBootScreen.style.opacity = '0';
+        fairBootScreen.addEventListener('transitionend', () => {
+            fairBootScreen.style.display = 'none';
+        }, { once: true });
+
+        setTimeout(() => {
+            blackOverlay.style.opacity = '0';
+            blackOverlay.addEventListener('transitionend', () => {
+                blackOverlay.style.pointerEvents = 'none';
+                isBooting = false;
+                
+            }, { once: true });
+        }, 200);
+    }
+
+    function showFairBootSequence() {
+        setTimeout(() => {window.parent.postMessage({ type: 'bootfinished' }, '*');}, 2500);
+        const bootScreenWrapper = document.getElementById('bootScreenWrapper');
+        const fairBootScreen = document.getElementById('fairBootScreen');
+        const fairBootContent = document.getElementById('fairBootContent');
+
+        bootScreenWrapper.style.display = 'none';
+        fairBootScreen.style.display = 'flex';
+
+        setTimeout(() => {
+            animateStutter(fairBootContent,
+                [{ name: 'opacity', startValue: 0, endValue: 1 }],
+                bootConfig.fairBootContentFadeInDurationMs,
+                bootConfig.fairBootContentFadeInSteps
+            );
+        }, 50);
+    }
+
+    function startBootSequence() {
+        const bootTextEl = document.getElementById('bootText');
+        const cursorEl = document.getElementById('cursor');
+        const bootScreenContent = document.getElementById('bootScreenContent');
+
+        bootScreenContent.style.transitionDuration = `${bootConfig.bootScreenContentFadeInDurationMs}ms`;
+        bootScreenContent.style.opacity = 1;
+
+        setTimeout(() => {
+            cursorEl.style.display = 'inline-block';
+            let lineIndex = 0;
+            function typeLine() {
+                if (lineIndex < bootLines.length) {
+                    bootTextEl.textContent += bootLines[lineIndex] + '\n';
+                    bootScreenContent.scrollTop = bootScreenContent.scrollHeight;
+                    lineIndex++;
+                    const delay = bootLines[lineIndex - 1] === '' ?
+                        bootConfig.bootSequenceLineDelayMs * 4 :
+                        bootConfig.bootSequenceLineDelayMs + Math.random() * bootConfig.bootSequenceRandomnessMs;
+                    setTimeout(typeLine, delay);
+                } else {
+                    bootTextEl.textContent += '\nC:\\> LOAD_SCENE.EXE\n';
+                    bootScreenContent.scrollTop = bootScreenContent.scrollHeight;
+                    setTimeout(() => {
+                        bootTextEl.textContent += '> Loading 3D Environment...';
+                        bootScreenContent.scrollTop = bootScreenContent.scrollHeight;
+                        cursorEl.style.display = 'none';
+                        setTimeout(showFairBootSequence, bootConfig.fairBootTransitionDelayMs);
+                    }, 500);
+                }
+            }
+            typeLine();
+        }, bootConfig.bootScreenContentFadeInDurationMs);
+    }
+
+    function setupFairBootLoader() {
+        const loadingMarquee = document.getElementById('loadingMarquee');
+        for (let i = 0; i < bootConfig.fairBootLoaderBlockCount; i++) {
+            const block = document.createElement('div');
+            block.className = 'loading-block';
+            loadingMarquee.appendChild(block);
+        }
+        const blockWidth = parseFloat(bootConfig.fairBootLoaderBlockWidth);
+        const blockMargin = 2;
+        const marqueeWidth = bootConfig.fairBootLoaderBlockCount * (blockWidth + blockMargin);
+        const trackWidth = parseFloat(bootConfig.fairBootLoaderTrackWidth);
+        const keyframes = `@keyframes marquee-anim { 0% { transform: translateX(-${marqueeWidth}px); } 100% { transform: translateX(${trackWidth}px); } }`;
+        const styleSheet = document.createElement("style");
+        styleSheet.type = "text/css";
+        styleSheet.innerText = keyframes;
+        document.head.appendChild(styleSheet);
+        loadingMarquee.style.animation = `marquee-anim ${bootConfig.fairBootLoaderMarqueeDurationMs}ms steps(${bootConfig.fairBootLoaderMarqueeSteps}, end) infinite`;
+    }
+
+    function beginBootUp() {
+        const bootScreenWrapper = document.getElementById('bootScreenWrapper');
+        const bootScreen = document.getElementById('bootScreen');
+        
+        // --- FIX: Ensure the boot screen is visible before animating ---
+        bootScreenWrapper.style.display = 'flex'; 
+
+        bootScreenWrapper.style.transitionDuration = `${bootConfig.fadeToBlackDurationMs}ms`;
+        bootScreenWrapper.classList.add('visible');
+
+        setTimeout(() => {
+            bootScreen.style.transition = 'none';
+            const computedStyle = getComputedStyle(bootScreenWrapper);
+            const paddingX = parseFloat(computedStyle.paddingLeft) + parseFloat(computedStyle.paddingRight);
+            const paddingY = parseFloat(computedStyle.paddingTop) + parseFloat(computedStyle.paddingBottom);
+            const finalWidth = window.innerWidth - paddingX;
+            const finalHeight = window.innerHeight - paddingY;
+            animateStutter(bootScreen,
+                [
+                    { name: 'width', startValue: parseFloat(bootConfig.bootScreenInitialSize), endValue: finalWidth, unit: 'px' },
+                    { name: 'height', startValue: parseFloat(bootConfig.bootScreenInitialSize), endValue: finalHeight, unit: 'px' }
+                ],
+                bootConfig.bootScreenAnimateDurationMs,
+                bootConfig.bootScreenAnimateSteps
+            );
+        }, 10);
+
+        setTimeout(startBootSequence, bootConfig.fadeToBlackDurationMs + bootConfig.bootScreenAnimateDurationMs);
+        const bootSound = document.getElementById('boot-sound');
+        if (bootSound) {
+            bootSound.play().catch(error => {
+                console.error("Autoplay for boot sound was prevented:", error);
+            });
+        }
+    }
+
+
+    // --- OS CORE VARIABLES & CONFIG ---
+    const ICON_URLS = {
+        computer: "icons/computer.png", documents: "icons/documents.png", folder: "icons/folder.png",
+        recycleBin: "icons/recycleBin.png", internet: "icons/internet.png", screenshot: "",
+        imageFile: "icons/imageFile.png", pdfFile: "", google: "", linkedin: "icons/imageFile.png",
+        figma: "icons/figma.png", music: "icons/music.png", workfile: "icons/workfile.png", default: ""
+    };
     const DEFAULT_OS_CONFIG = {
         "settings": { "wallpaperUrl": "" },
         "desktop": [
@@ -880,98 +777,25 @@
             { "id": "figma-icon", "name": "figma", "iconType": "figma", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#F24E1E" d="M7.5,16.5A1.5,1.5 0 0,1 6,15V12A1.5,1.5 0 0,1 7.5,10.5H9V12H7.5V15H9V16.5H7.5M12,15A1.5,1.5 0 0,1 10.5,13.5V12A1.5,1.5 0 0,1 12,10.5A1.5,1.5 0 0,1 13.5,12V13.5A1.5,1.5 0 0,1 12,15M12,9A1.5,1.5 0 0,1 10.5,7.5A1.5,1.5 0 0,1 12,6A1.5,1.5 0 0,1 13.5,7.5A1.5,1.5 0 0,1 12,9M16.5,13.5A1.5,1.5 0 0,1 15,12A1.5,1.5 0 0,1 16.5,10.5H18V12H16.5V13.5M16.5,9A1.5,1.5 0 0,1 15,7.5V6H16.5A1.5,1.5 0 0,1 18,7.5V9H16.5Z" /></svg>`, "action": { "type": "openWindow", "payload": "window-showcase" } }
         ],
         "windows": {
-            "window-computer": {
-                "title": "my_computer", "width": 1050, "height": 700, "top": "5%", "left": "15%", "theme": "window-theme-blue",
-                "content": {
-                    "type": "storage",
-                    "payload": [
-                        { "id": "work-folder", "name": "Work", "iconType": "folder", "description": "Contains all work-related documents and projects.", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#F9E79F" d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.1.89 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.11-.9-2-2h-8l-2-2z"/></svg>`, "action": { "type": "openWindow", "payload": "window-work-docs" } },
-                        { "id": "passion-folder", "name": "Passion", "iconType": "folder", "description": "Contains personal hobbies and passion projects.", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#F9E79F" d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.1.89 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.11-.9-2-2h-8l-2-2z"/></svg>`, "action": { "type": "openWindow", "payload": "window-passion-pics" } },
-                        { "id": "holidays-folder", "name": "Holidays","iconType": "folder",  "description": "", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#F9E79F" d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.1.89 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.11-.9-2-2h-8l-2-2z"/></svg>`, "action": { "type": "openWindow", "payload": "window-holidays-vids" } },
-                        { "id": "resume-pdf", "name": "Resume.pdf", "iconType": "workfile", "description": "My professional resume.", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#E57373" d="M19,2H5A2,2 0 0,0 3,4V20A2,2 0 0,0 5,22H19A2,2 0 0,0 21,20V4A2,2 0 0,0 19,2M9.5,11.5A1.5,1.5 0 0,1 8,10A1.5,1.5 0 0,1 9.5,8.5H11.5V10H9.5V11.5H11.5V13H9.5V14.5H11.5A1.5,1.5 0 0,0 13,13V10A1.5,1.5 0 0,0 11.5,8.5H9.5M16,14.5H14.5V8.5H16V14.5Z" /></svg>`, "action": { "type": "openWindow", "payload": "window-resume-pdf" } }
-                    ]
-                }
-            },
+            "window-computer": { "title": "my_computer", "width": 1050, "height": 700, "top": "5%", "left": "15%", "theme": "window-theme-blue", "content": { "type": "storage", "payload": [ { "id": "work-folder", "name": "Work", "iconType": "folder", "description": "Contains all work-related documents and projects.", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#F9E79F" d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.1.89 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.11-.9-2-2h-8l-2-2z"/></svg>`, "action": { "type": "openWindow", "payload": "window-work-docs" } }, { "id": "passion-folder", "name": "Passion", "iconType": "folder", "description": "Contains personal hobbies and passion projects.", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#F9E79F" d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.1.89 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.11-.9-2-2h-8l-2-2z"/></svg>`, "action": { "type": "openWindow", "payload": "window-passion-pics" } }, { "id": "holidays-folder", "name": "Holidays","iconType": "folder",  "description": "", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#F9E79F" d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.1.89 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.11-.9-2-2h-8l-2-2z"/></svg>`, "action": { "type": "openWindow", "payload": "window-holidays-vids" } }, { "id": "resume-pdf", "name": "Resume.pdf", "iconType": "workfile", "description": "My professional resume.", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#E57373" d="M19,2H5A2,2 0 0,0 3,4V20A2,2 0 0,0 5,22H19A2,2 0 0,0 21,20V4A2,2 0 0,0 19,2M9.5,11.5A1.5,1.5 0 0,1 8,10A1.5,1.5 0 0,1 9.5,8.5H11.5V10H9.5V11.5H11.5V13H9.5V14.5H11.5A1.5,1.5 0 0,0 13,13V10A1.5,1.5 0 0,0 11.5,8.5H9.5M16,14.5H14.5V8.5H16V14.5Z" /></svg>`, "action": { "type": "openWindow", "payload": "window-resume-pdf" } } ] } },
             "window-recycle-bin": { "title": "Recycle Bin", "width": 500, "height": 400, "top": "20%", "left": "25%", "theme": "", "content": { "type": "storage", "payload": [] } },
             "window-work-docs": { "title": "my_computer\\Work", "content": { "type": "storage", "payload": [] } },
             "window-passion-pics": { "title": "my_computer\\Passion", "content": { "type": "storage", "payload": [] } },
-            "window-holidays-vids": {
-                "title": "my_computer\\Holidays",
-                "content": {
-                    "type": "storage",
-                    "payload": [
-                        { "id": "goa-pic", "name": "Goa.png", "iconType": "imageFile", "description": "A beautiful picture from the beaches of Goa.", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#B2EBF2" d="M21.4,6.6l-2.8-2.8C18.3,3.5,17.9,3.3,17.5,3.3H6.5C5.7,3.3,5,4,5,4.8v14.4c0,0.8,0.7,1.5,1.5,1.5h11c0.8,0,1.5-0.7,1.5-1.5V7.5C19,7.1,18.8,6.7,18.6,6.4L21.4,6.6z M13,18H7v-2h6V18z M17,14H7v-2h10V14z M17,10H7V8h10V10z"/></svg>`, "action": { "type": "openImage", "payload": "openAssets/car.jpg", "title": "Goa.png" } },
-                        { "id": "conoor-pic", "name": "Conoor.jpg", "iconType": "imageFile", "description": "A scenic view from the hills of Conoor.", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#B2EBF2" d="M21.4,6.6l-2.8-2.8C18.3,3.5,17.9,3.3,17.5,3.3H6.5C5.7,3.3,5,4,5,4.8v14.4c0,0.8,0.7,1.5,1.5,1.5h11c0.8,0,1.5-0.7,1.5-1.5V7.5C19,7.1,18.8,6.7,18.6,6.4L21.4,6.6z M13,18H7v-2h6V18z M17,14H7v-2h10V14z M17,10H7V8h10V10z"/></svg>`, "action": { "type": "openImage", "payload": "openAssets/val.png", "title": "Conoor.jpg" } }
-                    ]
-                }
-            },
-            "window-resume-pdf": {
-                "title": "Resume.pdf", "width": 800, "height": 600, "top": "15%", "left": "20%",
-                "startMaximized": true,
-                "content": {
-                    "type": "pdf",
-                    "payload": "openAssets/pdfs/test.pdf",
-                    "placeholderImage": "https://placehold.co/800x1100/eeeeee/cccccc?text=Resume.pdf"
-                }
-            },
-            "window-internet": {
-                "title": "Internet", "width": 1024, "height": 768, "top": "10%", "left": "10%", "theme": "window-theme-blue",
-                "content": {
-                    "type": "mock-browser",
-                    "searchQuery": "More details about ishant",
-                    "searchResults": [
-                        { "title": "Linkedin | Ishant Periwal", "url": "https://www.linkedin.com/in/ishant-periwal/", "displayUrl": "linkedin.com/in/ishant-periwal", "subtext": "Accomplished Software Engineer with a passion for building innovative solutions and leading high-performing teams." },
-                        { "title": "Instagram @ishantperiwal", "url": "https://www.instagram.com/ishantperiwal/", "displayUrl": "instagram.com/ishantperiwal", "subtext": "Sharing my journey through code, travel, and photography. Follow for a glimpse into my life." },
-                        { "title": "GitHub | ishant-periwal", "url": "https://github.com/ishant-periwal", "displayUrl": "github.com/ishant-periwal", "subtext": "Check out my open-source projects, contributions, and coding experiments. Always learning, always building." },
-                        { "title": "Personal Blog - The Digital Canvas", "url": "#", "displayUrl": "ishant.dev/blog", "subtext": "Musings on technology, software architecture, and the future of the web. Deep dives and tutorials." },
-                        { "title": "Twitter / X @ishant_codes", "url": "https://twitter.com/ishant_codes", "displayUrl": "twitter.com/ishant_codes", "subtext": "Real-time thoughts on tech trends, development tips, and engaging with the tech community." }
-                    ]
-                }
-            },
-            "window-music": {
-                "title": "Music Player", "width": 340, "height": 420, "top": "25%", "left": "40%", "theme": "window-theme-green",
-                "maximizable": false,
-                "showInTaskbar": false,
-                "content": { "type": "template", "payload": "music-player-template" },
-                "behaviorOnClose": "minimize",
-                "notificationId": "music-notification-icon"
-            },
+            "window-holidays-vids": { "title": "my_computer\\Holidays", "content": { "type": "storage", "payload": [ { "id": "goa-pic", "name": "Goa.png", "iconType": "imageFile", "description": "A beautiful picture from the beaches of Goa.", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#B2EBF2" d="M21.4,6.6l-2.8-2.8C18.3,3.5,17.9,3.3,17.5,3.3H6.5C5.7,3.3,5,4,5,4.8v14.4c0,0.8,0.7,1.5,1.5,1.5h11c0.8,0,1.5-0.7,1.5-1.5V7.5C19,7.1,18.8,6.7,18.6,6.4L21.4,6.6z M13,18H7v-2h6V18z M17,14H7v-2h10V14z M17,10H7V8h10V10z"/></svg>`, "action": { "type": "openImage", "payload": "openAssets/car.jpg", "title": "Goa.png" } }, { "id": "conoor-pic", "name": "Conoor.jpg", "iconType": "imageFile", "description": "A scenic view from the hills of Conoor.", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#B2EBF2" d="M21.4,6.6l-2.8-2.8C18.3,3.5,17.9,3.3,17.5,3.3H6.5C5.7,3.3,5,4,5,4.8v14.4c0,0.8,0.7,1.5,1.5,1.5h11c0.8,0,1.5-0.7,1.5-1.5V7.5C19,7.1,18.8,6.7,18.6,6.4L21.4,6.6z M13,18H7v-2h6V18z M17,14H7v-2h10V14z M17,10H7V8h10V10z"/></svg>`, "action": { "type": "openImage", "payload": "openAssets/val.png", "title": "Conoor.jpg" } } ] } },
+            "window-resume-pdf": { "title": "Resume.pdf", "width": 800, "height": 600, "top": "15%", "left": "20%", "startMaximized": true, "content": { "type": "pdf", "payload": "openAssets/pdfs/test.pdf", "placeholderImage": "https://placehold.co/800x1100/eeeeee/cccccc?text=Resume.pdf" } },
+            "window-internet": { "title": "Internet", "width": 1024, "height": 768, "top": "10%", "left": "10%", "theme": "window-theme-blue", "content": { "type": "mock-browser", "searchQuery": "More details about ishant", "searchResults": [ { "title": "Linkedin | Ishant Periwal", "url": "https://www.linkedin.com/in/ishant-periwal/", "displayUrl": "linkedin.com/in/ishant-periwal", "subtext": "Accomplished Software Engineer with a passion for building innovative solutions and leading high-performing teams." }, { "title": "Instagram @ishantperiwal", "url": "https://www.instagram.com/ishantperiwal/", "displayUrl": "instagram.com/ishantperiwal", "subtext": "Sharing my journey through code, travel, and photography. Follow for a glimpse into my life." }, { "title": "GitHub | ishant-periwal", "url": "https://github.com/ishant-periwal", "displayUrl": "github.com/ishant-periwal", "subtext": "Check out my open-source projects, contributions, and coding experiments. Always learning, always building." }, { "title": "Personal Blog - The Digital Canvas", "url": "#", "displayUrl": "ishant.dev/blog", "subtext": "Musings on technology, software architecture, and the future of the web. Deep dives and tutorials." }, { "title": "Twitter / X @ishant_codes", "url": "https://twitter.com/ishant_codes", "displayUrl": "twitter.com/ishant_codes", "subtext": "Real-time thoughts on tech trends, development tips, and engaging with the tech community." } ] } },
+            "window-music": { "title": "Music Player", "width": 340, "height": 420, "top": "25%", "left": "40%", "theme": "window-theme-green", "maximizable": false, "showInTaskbar": false, "content": { "type": "template", "payload": "music-player-template" }, "behaviorOnClose": "minimize", "notificationId": "music-notification-icon" },
             "window-modal": { "title": "Attention!", "width": 600, "height": 350, "top": "50%", "left": "25%", "theme": "window-theme-pink", "content": { "type": "template", "payload": "modal-template" } },
             "window-docs": { "title": "my_documents", "width": 780, "height": 550, "top": "10%", "left": "30%", "theme": "", "content": { "type": "storage", "payload": [] } },
             "window-after-effects": { "title": "After Effects", "width": 800, "height": 600, "top": "15%", "left": "25%", "content": { "type": "template", "payload": "checkerboard-template" } },
             "window-affinity": { "title": "Affinity Designer", "width": 800, "height": 600, "top": "18%", "left": "28%", "content": { "type": "template", "payload": "checkerboard-template" } },
             "window-plasticity": { "title": "Plasticity", "width": 800, "height": 600, "top": "21%", "left": "31%", "content": { "type": "template", "payload": "checkerboard-template" } },
             "window-blender": { "title": "Blender", "width": 800, "height": 600, "top": "24%", "left": "34%", "content": { "type": "template", "payload": "checkerboard-template" } },
-            "window-showcase": {
-                "title": "figma", "width": 850, "height": 579, "top": "10%", "left": "20%",
-                "theme": "window-theme-dark",
-                "content": {
-                    "type": "showcase",
-                    "payload": [
-                        { "imageUrl": "https://placehold.co/140x140/ff98e7/000?text=ProjectA", "title": "Project Alpha", "description": "A revolutionary new design system for modern web applications.", "buttonText": "View Details", "buttonUrl": "https://example.com/project-a" },
-                        { "imageUrl": "https://placehold.co/140x140/a3ff98/000?text=ProjectB", "title": "Project Beta", "description": "An innovative mobile app for tracking personal fitness goals.", "buttonText": "See More", "buttonUrl": "https://example.com/project-b" }
-                    ]
-                }
-            },
-            "window-image-viewer": {
-                "title": "Image Viewer", "width": 640, "height": 480, "top": "20%", "left": "25%",
-                "maximizable": true,
-                "showInTaskbar": true,
-                "content": { "type": "image", "payload": "" }
-            }
+            "window-showcase": { "title": "figma", "width": 850, "height": 579, "top": "10%", "left": "20%", "theme": "window-theme-dark", "content": { "type": "showcase", "payload": [ { "imageUrl": "https://placehold.co/140x140/ff98e7/000?text=ProjectA", "title": "Project Alpha", "description": "A revolutionary new design system for modern web applications.", "buttonText": "View Details", "buttonUrl": "https://example.com/project-a" }, { "imageUrl": "https://placehold.co/140x140/a3ff98/000?text=ProjectB", "title": "Project Beta", "description": "An innovative mobile app for tracking personal fitness goals.", "buttonText": "See More", "buttonUrl": "https://example.com/project-b" } ] } },
+            "window-image-viewer": { "title": "Image Viewer", "width": 640, "height": 480, "top": "20%", "left": "25%", "maximizable": true, "showInTaskbar": true, "content": { "type": "image", "payload": "" } }
         },
         "startMenu": [
-            {
-                "type": "submenu",
-                "name": "Programs",
-                "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M4 2h16v2H4zm0 4h16v12H4zm2 2v8h12v-8z"/></svg>`,
-                "items": [
-                    { "name": "After Effects", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#9C27B0" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-1 15V7h2v10zm-4-2V9h2v6zm8-4V9h2v2z"/></svg>`, "action": { "type": "openWindow", "payload": "window-after-effects" } },
-                    { "name": "Affinity Designer", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#1976D2" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 18c-4.4 0-8-3.6-8-8s3.6-8 8-8 8 3.6 8 8-3.6 8-8 8zm-1-12h2v8h-2z"/></svg>`, "action": { "type": "openWindow", "payload": "window-affinity" } },
-                    { "name": "Plasticity", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#FF5722" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 15l-5-5h10z"/></svg>`, "action": { "type": "openWindow", "payload": "window-plasticity" } },
-                    { "name": "Blender", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#E65100" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 14.5V11h4v5.5zm0-7.5V7h4v2z"/></svg>`, "action": { "type": "openWindow", "payload": "window-blender" } }
-                ]
-            },
+            { "type": "submenu", "name": "Programs", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M4 2h16v2H4zm0 4h16v12H4zm2 2v8h12v-8z"/></svg>`, "items": [ { "name": "After Effects", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#9C27B0" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-1 15V7h2v10zm-4-2V9h2v6zm8-4V9h2v2z"/></svg>`, "action": { "type": "openWindow", "payload": "window-after-effects" } }, { "name": "Affinity Designer", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#1976D2" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 18c-4.4 0-8-3.6-8-8s3.6-8 8-8 8 3.6 8 8-3.6 8-8 8zm-1-12h2v8h-2z"/></svg>`, "action": { "type": "openWindow", "payload": "window-affinity" } }, { "name": "Plasticity", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#FF5722" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 15l-5-5h10z"/></svg>`, "action": { "type": "openWindow", "payload": "window-plasticity" } }, { "name": "Blender", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#E65100" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 14.5V11h4v5.5zm0-7.5V7h4v2z"/></svg>`, "action": { "type": "openWindow", "payload": "window-blender" } } ] },
             { "type": "item", "name": "Messages", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>`, "action": { "type": "openWindow", "payload": "window-modal" } },
             { "type": "item", "name": "Documents", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zM16 18H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>`, "action": { "type": "openWindow", "payload": "window-docs" } },
             { "type": "separator" },
@@ -990,16 +814,12 @@
 
     let screenShotFlag = true;
     let isBooting = true;
+    let bootStarted = false; // <-- New flag to prevent multiple boot triggers
     let infocusmode  = false;
 
-    let isInteracting = false; // Flag to indicate if the user is currently interacting
-    let interactionTimer = null; // Timer to reset the isInteracting flag
-    const INTERACTION_TIMEOUT = 18500; // 10 seconds (10 * 1000 ms)
-
-
-    const SHOW_BOOT_SCREEN = true;
-    const BOOT_FADE_OUT_TIME_MS = 550;
-    const BLACK_SCREEN_FADE_OUT_TIME_MS = 350;
+    let isInteracting = false;
+    let interactionTimer = null;
+    const INTERACTION_TIMEOUT = 18500;
 
     const GRID_THICKNESS = 3;
     const GRID_COLOR = 'rgba(51, 51, 51, 0.5)';
@@ -1013,9 +833,9 @@
     const startMenuListContainer = document.getElementById('start-menu-list-container');
     const notificationIconsContainer = document.getElementById('notification-icons-container');
     const clockElement = document.getElementById('clock');
-    const bootIframe = document.getElementById('boot-iframe');
     let submenuHideTimer = null;
 
+    // --- OS CORE FUNCTIONS ---
     function getIconHTML(iconData) {
         if (iconData.iconType && ICON_URLS[iconData.iconType]) {
             return `<img src="${ICON_URLS[iconData.iconType]}" alt="${iconData.name}">`;
@@ -1093,7 +913,7 @@
                     const hideSubmenu = () => {
                         submenuHideTimer = setTimeout(() => {
                             submenuEl.classList.remove('visible');
-                        }, 300); // 300ms delay before hiding
+                        }, 300);
                     };
 
                     itemEl.addEventListener('mouseenter', showSubmenu);
@@ -1164,16 +984,14 @@
                 `;
                 contentEl.style.padding = '10px';
                 contentEl.style.boxSizing = 'border-box';
-                contentEl.style.position = 'relative'; // Needed for absolute positioning of arrows
+                contentEl.style.position = 'relative';
                 break;
             case 'pdf':
                 contentEl.style.padding = '0';
                 contentEl.style.overflow = 'hidden';
-                contentEl.style.position = 'relative'; // Make the content element a positioning context
-
+                contentEl.style.position = 'relative';
                 const placeholderUrl = contentData.placeholderImage || 'https://placehold.co/800x1100/eeeeee/cccccc?text=Loading+Document...';
                 const pdfUrl = `${contentData.payload}#toolbar=0&navpanes=0&view=FitH`;
-
                 contentEl.innerHTML = `
                     <img src="${placeholderUrl}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1;" alt="PDF Placeholder">
                     <iframe src="${pdfUrl}" class="pdf-iframe" style="position: relative; z-index: 2; width: 100%; height: 100%; border: none; background-color: transparent;"></iframe>
@@ -1197,27 +1015,22 @@
                     const resultsHeaderInput = clone.querySelector('.results-search-input');
                     const resultsContent = clone.querySelector('.results-content');
                     const fullQuery = contentData.searchQuery;
-
                     let charIndex = 0;
-                    searchInput.textContent = ''; // Start empty
-
+                    searchInput.textContent = '';
                     const startTypingAnimation = () => searchInput.classList.add('typing');
                     const stopTypingAnimation = () => searchInput.classList.remove('typing');
-
                     const showResults = () => {
                         searchPage.style.display = 'none';
                         resultsPage.style.display = 'flex';
                         resultsHeaderInput.textContent = fullQuery;
                         resultsContent.innerHTML = '';
                         backButton.disabled = false;
-
                         const resultsLabel = document.createElement('p');
                         resultsLabel.textContent = 'Search results';
                         resultsLabel.style.fontSize = '22px';
                         resultsLabel.style.color = '#70757a';
                         resultsLabel.style.marginBottom = '20px';
                         resultsContent.appendChild(resultsLabel);
-
                         contentData.searchResults.forEach(result => {
                             const resultEl = document.createElement('div');
                             resultEl.className = 'search-result-item';
@@ -1229,7 +1042,6 @@
                             resultsContent.appendChild(resultEl);
                         });
                     };
-
                     const performSearch = () => {
                         stopTypingAnimation();
                         if (searchInput.textContent !== fullQuery) {
@@ -1239,15 +1051,12 @@
                             showResults();
                         }
                     };
-
                     searchInput.addEventListener('keydown', (e) => {
                         startTypingAnimation();
-
                         if (e.key === 'Enter' && searchInput.textContent.length > 0) {
                             performSearch();
                             return;
                         }
-
                         if (e.key === 'Backspace') {
                             if (charIndex > 0) {
                                 charIndex--;
@@ -1255,15 +1064,12 @@
                             }
                             return;
                         }
-
                         if (e.key.length === 1 && charIndex < fullQuery.length) {
                             searchInput.textContent += fullQuery.charAt(charIndex);
                             charIndex++;
                         }
                     });
-
                     searchButton.addEventListener('click', performSearch);
-
                     backButton.addEventListener('click', () => {
                         resultsPage.style.display = 'none';
                         searchPage.style.display = 'flex';
@@ -1273,7 +1079,6 @@
                         searchInput.focus();
                         startTypingAnimation();
                     });
-
                     contentEl.appendChild(clone);
                 } else {
                     contentEl.textContent = 'Error: Mock browser template not found.';
@@ -1361,20 +1166,15 @@
     function renderContentInWindow(windowEl, newWindowId, isBack = false) {
         const newWindowConfig = DEFAULT_OS_CONFIG.windows[newWindowId];
         if (!newWindowConfig) return;
-
         let history = JSON.parse(windowEl.dataset.history);
-
         if (!isBack) {
             if (history[history.length - 1] !== newWindowId) history.push(newWindowId);
             windowEl.dataset.history = JSON.stringify(history);
-              screenShotFlag = true;
+            screenShotFlag = true;
         }
-
         updateSidebar(windowEl, null);
-
         windowEl.querySelector('.title-text').textContent = newWindowConfig.title.split('\\').pop();
         if (windowEl.querySelector('.address-bar')) windowEl.querySelector('.address-bar').textContent = newWindowConfig.title;
-
         const storageContainer = windowEl.querySelector('.storage-container');
         storageContainer.innerHTML = '';
         newWindowConfig.content.payload.forEach(iconData => {
@@ -1393,7 +1193,6 @@
             });
             storageContainer.appendChild(iconEl);
         });
-
         const backButton = windowEl.querySelector('.back-button');
         const canGoBack = history.length > 1;
         backButton.disabled = !canGoBack;
@@ -1411,7 +1210,6 @@
 
     function handleStorageItemDoubleClick(iconData, windowEl) {
         if (!iconData.action) return;
-
         if (iconData.action.type === 'openImage') {
             const parentWindowId = JSON.parse(windowEl.dataset.history).pop();
             const parentConfig = DEFAULT_OS_CONFIG.windows[parentWindowId];
@@ -1432,18 +1230,10 @@
     function handleAction(action) {
         if (!action) return;
         switch (action.type) {
-            case 'openWindow':
-                openWindow(action.payload);
-                break;
-            case 'openImage':
-                openImage(action.payload, action.title);
-                break;
-            case 'screenshot':
-                captureAndDownloadScreenshot();
-                break;
-            case 'shutdown':
-                console.log("Shutdown initiated...");
-                break;
+            case 'openWindow': openWindow(action.payload); break;
+            case 'openImage': openImage(action.payload, action.title); break;
+            case 'screenshot': captureAndDownloadScreenshot(); break;
+            case 'shutdown': console.log("Shutdown initiated..."); break;
         }
         startMenu.classList.remove('show');
     }
@@ -1467,9 +1257,7 @@
         const closeBtn = windowEl.querySelector('.close-btn');
         const maximizeBtn = windowEl.querySelector('.maximize-btn');
         const windowConfig = DEFAULT_OS_CONFIG.windows[windowEl.id];
-
         windowEl.addEventListener('mousedown', () => bringToFront(windowEl), true);
-
         if (titleBar) {
             titleBar.addEventListener('mousedown', (e) => {
                 if (e.target.closest('.title-bar-button') || windowEl.dataset.isMaximized === 'true') return;
@@ -1485,7 +1273,7 @@
                     let newTop = Math.max(0, Math.min(initialTop + dy, window.innerHeight - statusBarHeight - titleBar.offsetHeight));
                     windowEl.style.left = `${newLeft}px`;
                     windowEl.style.top = `${newTop}px`;
-                      screenShotFlag = true;
+                    screenShotFlag = true;
                 };
                 document.addEventListener('mousemove', onMouseMove);
                 document.addEventListener('mouseup', () => {
@@ -1523,52 +1311,38 @@
             const statusBar = document.querySelector('.status-bar');
             const topOfStatusBar = statusBar ? statusBar.getBoundingClientRect().top : window.innerHeight;
             windowEl.dataset.originalRect = JSON.stringify({ top: windowEl.style.top, left: windowEl.style.left, width: windowEl.style.width, height: windowEl.style.height });
-
             const padding = 16;
             const newTop = `${padding}px`;
             const newLeft = `${padding}px`;
             const newWidth = `calc(100vw - ${padding * 2}px)`;
             const newHeight = `calc(${topOfStatusBar}px - ${padding * 2}px)`;
-
-            Object.assign(windowEl.style, {
-                top: newTop,
-                left: newLeft,
-                width: newWidth,
-                height: newHeight
-            });
+            Object.assign(windowEl.style, { top: newTop, left: newLeft, width: newWidth, height: newHeight });
             windowEl.dataset.isMaximized = 'true';
         }
-          screenShotFlag = true;
+        screenShotFlag = true;
     }
 
     function minimizeWindow(windowEl) {
-      const windowConfig = DEFAULT_OS_CONFIG.windows[windowEl.id];
-      if (!windowConfig || !windowConfig.notificationId) return;
-
-      const notifIcon = document.getElementById(windowConfig.notificationId);
-      if (!notifIcon) return;
-
-      const notifArea = document.querySelector('.notification-area');
-      if (!notifArea) return;
-
-      const targetRect = notifArea.getBoundingClientRect();
-      const windowRect = windowEl.getBoundingClientRect();
-
-      const targetX = targetRect.left + (targetRect.width / 2) - windowRect.left;
-      const targetY = targetRect.top + (targetRect.height / 2) - windowRect.top;
-
-      windowEl.style.setProperty('--target-x', `${targetX}px`);
-      windowEl.style.setProperty('--target-y', `${targetY}px`);
-
-      windowEl.classList.add('window-minimizing');
-      removeTaskbarItem(windowEl.id);
-
-      windowEl.addEventListener('animationend', () => {
-          windowEl.classList.add('hidden');
-          windowEl.classList.remove('window-minimizing');
-          notifIcon.classList.remove('hidden');
-      }, { once: true });
-  }
+        const windowConfig = DEFAULT_OS_CONFIG.windows[windowEl.id];
+        if (!windowConfig || !windowConfig.notificationId) return;
+        const notifIcon = document.getElementById(windowConfig.notificationId);
+        if (!notifIcon) return;
+        const notifArea = document.querySelector('.notification-area');
+        if (!notifArea) return;
+        const targetRect = notifArea.getBoundingClientRect();
+        const windowRect = windowEl.getBoundingClientRect();
+        const targetX = targetRect.left + (targetRect.width / 2) - windowRect.left;
+        const targetY = targetRect.top + (targetRect.height / 2) - windowRect.top;
+        windowEl.style.setProperty('--target-x', `${targetX}px`);
+        windowEl.style.setProperty('--target-y', `${targetY}px`);
+        windowEl.classList.add('window-minimizing');
+        removeTaskbarItem(windowEl.id);
+        windowEl.addEventListener('animationend', () => {
+            windowEl.classList.add('hidden');
+            windowEl.classList.remove('window-minimizing');
+            notifIcon.classList.remove('hidden');
+        }, { once: true });
+    }
 
     function createNotificationIcon(iconData) {
         if (!iconData || !iconData.id || document.getElementById(iconData.id)) return;
@@ -1593,11 +1367,9 @@
         const viewportPadding = 80;
         const maxWidth = window.innerWidth - viewportPadding - totalPadding;
         const maxHeight = window.innerHeight - statusBarHeight - viewportPadding - totalPadding;
-
         let contentWidth = img.naturalWidth;
         let contentHeight = img.naturalHeight;
         const ratio = img.naturalWidth / img.naturalHeight;
-
         if (contentWidth > maxWidth) {
             contentWidth = maxWidth;
             contentHeight = contentWidth / ratio;
@@ -1606,19 +1378,14 @@
             contentHeight = maxHeight;
             contentWidth = contentHeight * ratio;
         }
-
         const titleBar = windowEl.querySelector('.title-bar');
         const titleBarHeight = titleBar ? titleBar.offsetHeight : 58;
         const borderWidths = 8;
-
         const windowWidth = contentWidth + totalPadding + borderWidths;
         const windowHeight = contentHeight + totalPadding + titleBarHeight;
-
         windowEl.style.width = `${windowWidth}px`;
         windowEl.style.height = `${windowHeight}px`;
-
         if (!preservePosition) {
-            // Recenter the window
             windowEl.style.left = `${(window.innerWidth - windowWidth) / 2}px`;
             windowEl.style.top = `${(window.innerHeight - statusBarHeight - windowHeight) / 2}px`;
         }
@@ -1628,13 +1395,10 @@
         const prevArrow = windowEl.querySelector('.prev-arrow');
         const nextArrow = windowEl.querySelector('.next-arrow');
         if (!prevArrow || !nextArrow) return;
-
         const imageContext = JSON.parse(windowEl.dataset.imageContext || '[]');
         let currentIndex = parseInt(windowEl.dataset.currentImageIndex, 10);
-
         prevArrow.disabled = currentIndex <= 0;
         nextArrow.disabled = currentIndex >= imageContext.length - 1;
-
         prevArrow.onclick = () => navigateImageViewer(windowEl, -1);
         nextArrow.onclick = () => navigateImageViewer(windowEl, 1);
     }
@@ -1642,13 +1406,10 @@
     function updateImageInViewer(viewerEl, imageUrl, title, newIndex) {
         const imgElement = viewerEl.querySelector('.content img');
         const titleElement = viewerEl.querySelector('.title-text');
-
         imgElement.style.opacity = '0.5';
         titleElement.textContent = title;
-
         const newImg = new Image();
         newImg.src = imageUrl;
-
         newImg.onload = () => {
             imgElement.src = newImg.src;
             imgElement.style.opacity = '1';
@@ -1668,7 +1429,6 @@
         const imageContext = JSON.parse(windowEl.dataset.imageContext || '[]');
         let currentIndex = parseInt(windowEl.dataset.currentImageIndex, 10);
         const newIndex = currentIndex + direction;
-
         if (newIndex >= 0 && newIndex < imageContext.length) {
             const newImageItem = imageContext[newIndex];
             updateImageInViewer(windowEl, newImageItem.action.payload, newImageItem.name, newIndex);
@@ -1679,31 +1439,24 @@
         const viewerId = 'window-image-viewer';
         const viewerEl = document.getElementById(viewerId);
         if (!viewerEl) return;
-
         const imgElement = viewerEl.querySelector('.content img');
         const titleElement = viewerEl.querySelector('.title-text');
-
         titleElement.textContent = title;
         imgElement.style.opacity = '0.5';
-
         const newImg = new Image();
         newImg.src = imageUrl;
-
         newImg.onload = () => {
             imgElement.src = newImg.src;
             imgElement.style.opacity = '1';
-
             const isOpeningFromHidden = viewerEl.classList.contains('hidden');
             if (viewerEl.dataset.isMaximized !== 'true') {
                 resizeImageWindow(viewerEl, newImg, !isOpeningFromHidden);
             }
-
             if (isOpeningFromHidden) {
                 viewerEl.classList.remove('hidden');
                 viewerEl.classList.add('window-opening');
                 setTimeout(() => viewerEl.classList.remove('window-opening'), 300);
             }
-
             if (context && context.length > 0) {
                 const currentIndex = context.findIndex(item => item.action.payload === imageUrl);
                 viewerEl.dataset.imageContext = JSON.stringify(context);
@@ -1713,11 +1466,9 @@
                 viewerEl.dataset.currentImageIndex = '-1';
             }
             updateImageViewerArrows(viewerEl);
-
             createTaskbarItem(viewerEl);
             bringToFront(viewerEl);
         };
-
         newImg.onerror = () => {
             imgElement.style.opacity = '1';
             console.error("Failed to load image:", imageUrl);
@@ -1727,27 +1478,21 @@
     function openWindow(windowId) {
         const windowConfig = DEFAULT_OS_CONFIG.windows[windowId];
         if (!windowConfig) return;
-
         const windowToOpen = document.getElementById(windowId);
         if (!windowToOpen) return;
-
         const wasHidden = windowToOpen.classList.contains('hidden');
-
         if (wasHidden) {
             windowToOpen.classList.remove('hidden');
             screenShotFlag = true;
-
             if (windowConfig.content.type === 'storage' && !windowToOpen.dataset.history) {
                 windowToOpen.dataset.history = JSON.stringify([windowId]);
             }
-
             if (windowConfig.startMaximized && windowToOpen.dataset.isMaximized !== 'true') {
                 toggleMaximize(windowToOpen);
             } else {
                 windowToOpen.classList.add('window-opening');
                 setTimeout(() => windowToOpen.classList.remove('window-opening'), 300);
             }
-
             if (windowId === 'window-internet') {
                 const searchInput = windowToOpen.querySelector('.mock-search-input');
                 if (searchInput) {
@@ -1758,7 +1503,6 @@
                 }
             }
         }
-
         if (windowConfig.showInTaskbar !== false) {
             createTaskbarItem(windowToOpen);
         }
@@ -1786,7 +1530,6 @@
         }
         item.appendChild(document.createTextNode(windowEl.querySelector('.title-text').textContent));
         item.addEventListener('click', () => {
-            // Clicking taskbar item for image viewer should just bring to front
             if (windowId === 'window-image-viewer') {
                 bringToFront(windowEl);
                 if (windowEl.classList.contains('hidden')) {
@@ -1812,67 +1555,31 @@
 
     function initializeEventListeners() {
         const customCursor = document.getElementById('custom-cursor');
-        const startButton = document.getElementById('startButton');
-        const startMenu = document.getElementById('startMenu');
-        const clockElement = document.getElementById('clock');
-
         let hideCursorTimeout;
-
-        let isMouseOverIframe = false;
-
         document.addEventListener('mousemove', (e) => {
             customCursor.style.display = 'block';
             customCursor.style.left = e.clientX + 'px';
             customCursor.style.top = e.clientY + 'px';
-
             clearTimeout(hideCursorTimeout);
-
-            hideCursorTimeout = setTimeout(() => {
-                if (isMouseOverIframe) {
-                    customCursor.style.display = 'none';
-                }
-            }, 50);
-
-
-
+            hideCursorTimeout = setTimeout(() => { customCursor.style.display = 'none'; }, 2000);
         });
-
-        window.addEventListener('mouseover', (e) => {
-            if (e.target.tagName === 'IFRAME') {
-                isMouseOverIframe = true;
-            }
-        });
-
-        window.addEventListener('mouseout', (e) => {
-            if (e.target.tagName === 'IFRAME') {
-                isMouseOverIframe = false;
-            }
-        });
-
-
         document.addEventListener('mousedown', () => {
           customCursor.classList.add('clicked')
-
           if (!isInteracting&&!isBooting&&infocusmode) {
-         isInteracting = true;
-         window.parent.postMessage({ type: 'focus' }, '*');
-     }
-
-     clearTimeout(interactionTimer);
-     interactionTimer = setTimeout(() => {
-         isInteracting = false;
-         if(infocusmode) window.parent.postMessage({ type: 'relax' }, '*');
-        }, INTERACTION_TIMEOUT);
-
-      });
+             isInteracting = true;
+             window.parent.postMessage({ type: 'focus' }, '*');
+          }
+         clearTimeout(interactionTimer);
+         interactionTimer = setTimeout(() => {
+             isInteracting = false;
+             if(infocusmode) window.parent.postMessage({ type: 'relax' }, '*');
+            }, INTERACTION_TIMEOUT);
+        });
         document.addEventListener('mouseup', () => customCursor.classList.remove('clicked'));
-
         document.documentElement.addEventListener('mouseleave', () => {
             clearTimeout(hideCursorTimeout);
             customCursor.style.display = 'none';
         });
-
-
         document.body.addEventListener('click', (e) => {
             if (!e.target.closest('.desktop-icon')) {
                  document.querySelectorAll('.desktop-icon.selected').forEach(i => i.classList.remove('selected'));
@@ -1887,23 +1594,42 @@
                 document.querySelectorAll('.browser-dropdown.show').forEach(d => d.classList.remove('show'));
             }
         }, true);
-
         startButton.addEventListener('click', (e) => {
             e.stopPropagation();
             startMenu.classList.toggle('show');
-              screenShotFlag = true;
+            screenShotFlag = true;
         });
-
         document.body.addEventListener('click', (e) => {
             if (!e.target.closest('.start-menu') && !e.target.closest('.start-button')) {
                 startMenu.classList.remove('show');
             }
         });
-
         updateClock();
         setInterval(updateClock, 1000);
-    }
 
+        // --- Dev Boot Button Logic ---
+        const devBootButton = document.getElementById('dev-boot-button');
+        const devCompleteButton = document.getElementById('dev-complete-button');
+
+        if (devBootButton) {
+            if (AUTO_BOOT_ON_LOAD) {
+                document.getElementById('dev-controls').style.display = 'none';
+            } else {
+                devBootButton.addEventListener('click', () => {
+                    window.postMessage('begin_boot', '*');
+                    devBootButton.style.display = 'none';
+                    if (devCompleteButton) devCompleteButton.style.display = 'block';
+                }, { once: true });
+            }
+        }
+
+        if (devCompleteButton) {
+            devCompleteButton.addEventListener('click', () => {
+                window.postMessage('boot_complete', '*');
+                devCompleteButton.style.display = 'none';
+            }, { once: true });
+        }
+    }
 
     function updateClock() {
         const now = new Date();
@@ -1914,80 +1640,65 @@
 
     function captureAndDownloadScreenshot() {
         html2canvas(document.body, {
-            useCORS: true,
-            backgroundColor: null,
-            logging: false,
-            scale: 0.63,
-            width: 1669,
-            height: 1284,
-            windowWidth: 1669,
-            windowHeight: 1284
+            useCORS: true, backgroundColor: null, logging: false, scale: 0.63,
+            width: 1669, height: 1284, windowWidth: 1669, windowHeight: 1284
          }).then(canvas => {
            createImageBitmap(canvas, { imageOrientation: 'flipY' }).then(bitmap => {
-          window.parent.postMessage({ type: 'screenshotData', bitmap: bitmap }, '*', [bitmap]);
-          //console.log('Sent a screenshot bitmap');
-      });
-
+              window.parent.postMessage({ type: 'screenshotData', bitmap: bitmap }, '*', [bitmap]);
+          });
         }).catch(e => console.error("Error during screenshot:", e));
-    }
-
-    function completeBootProcess() {
-        const bootIframe = document.getElementById('boot-iframe');
-        const blackOverlay = document.getElementById('black-overlay');
-
-        if (bootIframe && blackOverlay) {
-            bootIframe.style.opacity = '0';
-            bootIframe.addEventListener('transitionend', () => {
-                bootIframe.style.pointerEvents = 'none';
-            }, { once: true });
-
-            setTimeout(() => {
-              isBooting = false;
-            }, 2500 );
-            setTimeout(() => {
-                blackOverlay.style.opacity = '0';
-
-
-                blackOverlay.addEventListener('transitionend', function onTransitionEnd() {
-                    blackOverlay.style.pointerEvents = 'none';
-
-                }, { once: true });
-
-            }, BOOT_FADE_OUT_TIME_MS);
-        }
     }
 
     window.addEventListener('message', (event) => {
         const command = event.data;
-        if (command === 'boot_complete') completeBootProcess();
-        else if (command === 'captureScreenshot')
-            {
-
-              if (screenShotFlag&&!isBooting&&infocusmode&&isInteracting) { captureAndDownloadScreenshot(); screenShotFlag = false; }
+        if (command === 'captureScreenshot') {
+            if (screenShotFlag && !isBooting && infocusmode && isInteracting) {
+                captureAndDownloadScreenshot();
+                screenShotFlag = false;
             }
-        else if (command === 'enter') {
-            setTimeout(() => {
-          infocusmode = true; }, 50);
-        }
-        else if (command === 'exit') {
+        } else if (command === 'enter') {
+            setTimeout(() => { infocusmode = true; }, 50);
+        } else if (command === 'exit') {
            isInteracting = false;
-          infocusmode = false;}
-        else if (command === 'boot_finished'){
-           window.parent.postMessage({ type: 'bootfinished' }, '*');
-        } else if(command === 'begin_boot'){
-            bootIframe.contentWindow.postMessage('beginBoot', '*');
+           infocusmode = false;
+        } else if (command === 'begin_boot' && !AUTO_BOOT_ON_LOAD && !bootStarted) {
+            bootStarted = true; // Set flag to true to prevent re-triggering
+            beginBootUp();
+        } else if (command === 'boot_complete') {
+            console.log('boot_complete recieved');
+            completeBootProcess();
         }
     });
 
     async function initializeOS() {
+        // Set OS visual properties
         document.documentElement.style.setProperty('--grid-thickness', `${GRID_THICKNESS}px`);
         document.documentElement.style.setProperty('--grid-line-color', GRID_COLOR);
         document.documentElement.style.setProperty('--scanline-intensity', SCANLINE_INTENSITY);
-        document.documentElement.style.setProperty('--boot-fade-duration', `${BOOT_FADE_OUT_TIME_MS / 1000}s`);
-        document.documentElement.style.setProperty('--black-overlay-fade-duration', `${BLACK_SCREEN_FADE_OUT_TIME_MS / 1000}s`);
+        document.documentElement.style.setProperty('--black-overlay-fade-duration', `${1500 / 1000}s`);
         document.documentElement.style.setProperty('--submenu-offset-x', `${SUBMENU_OFFSET_X}px`);
         document.documentElement.style.setProperty('--submenu-offset-y', `${SUBMENU_OFFSET_Y}px`);
 
+        // Set boot screen visual properties from its config
+        const bootScreen = document.getElementById('bootScreen');
+        document.body.style.setProperty('--boot-screen-padding-y', bootConfig.bootScreenPaddingY);
+        document.body.style.setProperty('--boot-screen-padding-x', bootConfig.bootScreenPaddingX);
+        document.body.style.setProperty('--boot-screen-border-width', bootConfig.bootScreenBorderWidth);
+        document.body.style.setProperty('--boot-screen-content-padding-top', bootConfig.bootScreenContentPaddingTop);
+        document.body.style.setProperty('--boot-screen-content-padding-right', bootConfig.bootScreenContentPaddingRight);
+        document.body.style.setProperty('--boot-screen-content-padding-bottom', bootConfig.bootScreenContentPaddingBottom);
+        document.body.style.setProperty('--boot-screen-content-padding-left', bootConfig.bootScreenContentPaddingLeft);
+        document.body.style.setProperty('--boot-screen-font-size', bootConfig.bootScreenFontSize);
+        document.body.style.setProperty('--boot-screen-line-height', bootConfig.bootScreenLineHeight);
+        document.body.style.setProperty('--fair-boot-logo-size', bootConfig.fairBootLogoSize);
+        document.body.style.setProperty('--fair-boot-loader-track-width', bootConfig.fairBootLoaderTrackWidth);
+        document.body.style.setProperty('--fair-boot-loader-track-height', bootConfig.fairBootLoaderTrackHeight);
+        document.body.style.setProperty('--fair-boot-loader-block-width', bootConfig.fairBootLoaderBlockWidth);
+        bootScreen.style.width = bootConfig.bootScreenInitialSize;
+        bootScreen.style.height = bootConfig.bootScreenInitialSize;
+        setupFairBootLoader();
+
+        // Load OS config and build the UI in the background
         let config = DEFAULT_OS_CONFIG;
         if (OS_CONFIG_URL) {
             try {
@@ -2001,10 +1712,16 @@
         buildUIFromConfig(config);
         initializeEventListeners();
 
-        const blackOverlay = document.getElementById('black-overlay');
-        if (!SHOW_BOOT_SCREEN) {
-            if (bootIframe) bootIframe.style.display = 'none';
-            if (blackOverlay) blackOverlay.style.display = 'none';
+        // Start boot process
+        if (AUTO_BOOT_ON_LOAD) {
+            beginBootUp();
+        } else {
+            // If not auto-booting, just show the black screen and wait for the message.
+            // The black-overlay is visible by default (opacity: 1).
+            // We just need to ensure the other boot elements are not displayed yet.
+            document.getElementById('bootScreenWrapper').style.display = 'none';
+            document.getElementById('fairBootScreen').style.display = 'none';
+            isBooting = true; // Keep the OS in a non-interactive state.
         }
     }
 
