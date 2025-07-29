@@ -7,6 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preload" href="baseScreenshot/base.png" as="image">
+    <link rel="preload" href="hdri/nightsky.hdr" as="fetch" crossorigin="anonymous">
     <link href="https://fonts.googleapis.com/css2?family=Aldrich&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
@@ -22,16 +23,13 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            opacity: 0; /* Start invisible */
-            transition: opacity 1.2s ease-out; /* Controls the fade-out animation */
         }
 
         /* ADDED: A new class to define the final "visible" state for the animation */
-        #startup-overlay.visible {
-            opacity: 1;
-        }
+
         #startup-overlay.visible #startup-button {
             transform: scale(1);
+            opacity: 1;
         }
 
         /* MODIFIED: Start the button slightly smaller for the scale-up effect */
@@ -39,9 +37,10 @@
             width: 550px;
             height: 550px;
             cursor: pointer;
-            transform: scale(0.9); /* Start smaller */
+            transform: scale(0.86);
+            opacity: 0;
             /* Use a longer, smoother transition for the initial reveal */
-            transition: transform 1.2s cubic-bezier(0.2, 1, 0.2, 1);
+            transition: transform 1.2s cubic-bezier(0.3, 0.3, 0.2, 1), opacity 1.2s ease-out;
         }
 
 
@@ -68,7 +67,7 @@
             z-index: 40; /* Layer between reveal layer and UI */
         }
         #css3d-container iframe {
-              pointer-events: none;  /* Disables mouse interactions */
+              pointer-events: none !important;  /* Disables mouse interactions */
               border-radius: 0px;               /* Ensures sharp, square corners */
             }
         /* Hide the default file input */
@@ -187,6 +186,18 @@
             /* This rotates the starting point of the stroke to the top */
             transform: rotate(-90deg);
         }
+
+        #iframe-stroke {
+        /* Dimensions should match the iframe's resolution */
+        width: 1669px;
+        height: 1284px;
+        /* Create the visual stroke */
+        border: 4px solid black; /* Adjust thickness and color as needed */
+        box-sizing: border-box; /* Ensures border is included in the dimensions */
+        background: transparent;
+        pointer-events: none; /* Make it click-through */
+    }
+
     </style>
 </head>
 <body class="text-white">
@@ -211,6 +222,7 @@
 
 
     <div style="position: absolute; top: -9999px; left: -9999px;">
+      <div id="iframe-stroke"></div>
         <div id="left-text-container" class="text-container">
             <h1>ISHANT</h1>
             <p>PRODUCT DESIGN</p>
@@ -715,6 +727,9 @@
         let beeTargetPosition = new THREE.Vector3();
         let beeIdleStartTime = 0;
 
+        let strokeObject;
+
+
         let placeholderPlane, cssObject, textureOverlayPlane;
         let lottieHead, lottieHeadPivot;
         let smokeGroup, smokeMaterials = [];
@@ -962,7 +977,7 @@
             camera.updateProjectionMatrix();
 
             // WebGL Renderer
-            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
             renderer.setClearColor(0x000000, 0);
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
@@ -1074,6 +1089,19 @@
             );
             cssObject.visible = true;
             scene.add(cssObject);
+
+            const strokeElement = document.getElementById('iframe-stroke');
+            strokeObject = new CSS3DObject(strokeElement);
+
+            strokeObject.position.copy(cssObject.position);
+            strokeObject.rotation.copy(cssObject.rotation);
+            strokeObject.scale.copy(cssObject.scale);
+
+              // Position it slightly in front of the iframe to ensure it's on top
+              strokeObject.position.z += 0.001; // A small offset is enough
+
+              scene.add(strokeObject);
+
 
             // --- NEW: Create and Position the Blinking Layer RELATIVE to the main plane ---
             blinkingLayer = document.createElement('div');
@@ -1949,6 +1977,9 @@
                 }
             } else if (event.data && event.data.type === 'bootfinished'){
                boot_sequence_finished = true;
+
+                gsap.to(strokeObject.element.style, { opacity: 0, duration: 0.5, onComplete: () => { strokeObject.visible = false; } });
+
                if(loadedModel){
                    const iframe = cssObject.element;
                    iframe.contentWindow.postMessage('boot_complete', '*');
@@ -2714,14 +2745,14 @@
             }
 
             // Animate the iframe corners after a short delay.
-            setTimeout(() => {
+
                 const iframe = cssObject.element;
                 gsap.to(iframe.style, {
                     borderRadius: `${PLANE_CORNER_RADIUS_PX}px`,
                     duration: 0.05,
                     ease: BOOT_ANIMATION_EASING
                 });
-            }, 800);
+          
 
             // After a longer delay, trigger the final transition from boot state to initial state.
             setTimeout(() => {
@@ -2742,7 +2773,7 @@
 
             }, 1200); // 1.2s
           }
-        
+
           function precompile() {
             // renderer.compile tells Three.js to prepare all objects and materials
             // for rendering. It triggers the shader compilation on the GPU.
