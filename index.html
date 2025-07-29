@@ -67,7 +67,7 @@
             z-index: 40; /* Layer between reveal layer and UI */
         }
         #css3d-container iframe {
-              pointer-events: none !important;  /* Disables mouse interactions */
+              pointer-events: none;  /* Disables mouse interactions */
               border-radius: 0px;               /* Ensures sharp, square corners */
             }
         /* Hide the default file input */
@@ -192,7 +192,7 @@
         width: 1669px;
         height: 1284px;
         /* Create the visual stroke */
-        border: 4px solid black; /* Adjust thickness and color as needed */
+        border: 20px solid black; /* Adjust thickness and color as needed */
         box-sizing: border-box; /* Ensures border is included in the dimensions */
         background: transparent;
         pointer-events: none; /* Make it click-through */
@@ -2752,7 +2752,7 @@
                     duration: 0.05,
                     ease: BOOT_ANIMATION_EASING
                 });
-          
+
 
             // After a longer delay, trigger the final transition from boot state to initial state.
             setTimeout(() => {
