@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fade to Black</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* * Base styles for the page.
+         * A dark, radial gradient background is used for a clean look.
+         * Overflow is hidden to prevent scrollbars from appearing during animations.
+        */
+        body {
+            background-color: #000; /* Solid black background to prevent edge artifacts */
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+
+        #initialGradient {
+            position: fixed;
+            top: -20px;
+            left: 30px;
+            width: 100vw;
+            height: 100vh;
+            background: radial-gradient(circle at center, #060606, black 40%);
+            z-index: 0;
+        }
+
+        /* * The image element's transitions are now managed by JavaScript.
+        */
+        #toggleImage {
+            transform: scale(1); /* Set initial scale */
+            position: relative;
+            z-index: 1;
+        }
+
+        /* * The black overlay that covers the screen.
+         * It starts fully transparent (opacity: 0) and is not clickable (pointer-events: none).
+         * A transition is set for the opacity property to create the fade effect.
+        */
+        #fadeOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: #000000;
+            opacity: 0;
+            pointer-events: none; /* Prevents the overlay from blocking clicks when invisible */
+            z-index: 1000; /* Ensures it's on top of all other content */
+        }
+
+        /* * This class is added by JavaScript to trigger the fade-in effect.
+         * It sets the opacity to 1, making the overlay visible.
+        */
+        #fadeOverlay.visible {
+            opacity: 1;
+            transition: opacity 180ms ease-in-out; /* The duration and timing of the fade */
+            pointer-events: auto; /* Makes the overlay interactive again once visible */
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+
+    <!-- The radial gradient background from the original file -->
+    <div id="initialGradient"></div>
+
+    <!-- This div will cover the screen when the button is pressed -->
+    <div id="fadeOverlay"></div>
+
+    <!-- The main button, using the original image and interactions -->
+    <img
+        id="toggleImage"
+        src="1.png"
+        alt="Toggle Button"
+        class="rounded-full cursor-pointer shadow-lg"
+        style="object-fit: contain;"
+        onerror="this.onerror=null;this.src='https://placehold.co/350x350/CCCCCC/000000?text=Image+Error';"
+    >
+
+    <script>
+        // --- CONFIGURATION: Animation and style settings from the original file ---
+        const config = {
+            initialImageSize: "550px",
+            clickScaleDownAmount: 0.90,
+            clickScaleDownDurationMs: 200,
+            clickScaleUpDurationMs: 300,
+            hoverScaleAmount: 1.05,
+            hoverDurationMs: 350,
+            fadeToBlackDurationMs: 180,
+            fadeInDelayMs: 200,
+            image1Url: "1.png",
+            image2Url: "2.png",
+        };
+
+        // --- DOM Element References ---
+        const toggleImage = document.getElementById('toggleImage');
+        const fadeOverlay = document.getElementById('fadeOverlay');
+        const initialGradient = document.getElementById('initialGradient');
+
+        // --- State Variables ---
+        let isPressed = false;
+        let pressAnimationStartTime = 0;
+        let fadeHasStarted = false;
+
+        /**
+         * Helper function to apply a CSS scale transform with a specified duration.
+         * @param {number} scale - The scale factor (e.g., 1.05 for 105%).
+         * @param {number} durationMs - The duration of the transition in milliseconds.
+         */
+        function applyScale(scale, durationMs) {
+            toggleImage.style.transition = `transform ${durationMs}ms ease-out`;
+            toggleImage.style.transform = `scale(${scale})`;
+        }
+
+        // --- EVENT HANDLERS ---
+
+        /**
+         * Handles the mouse down or touch start event on the image.
+         * It scales the image down, changes the source, and initiates the fade-to-black sequence.
+         */
+        function handlePress() {
+            if (fadeHasStarted) return; // Prevent multiple triggers
+            isPressed = true;
+            pressAnimationStartTime = Date.now();
+            applyScale(config.clickScaleDownAmount, config.clickScaleDownDurationMs);
+            toggleImage.src = config.image2Url;
+
+            // Start the fade-to-black sequence after a short delay.
+            setTimeout(() => {
+                if (fadeHasStarted) return;
+                fadeHasStarted = true;
+
+                initialGradient.style.display = 'none'; // Hide the gradient
+                fadeOverlay.classList.add('visible'); // Trigger the fade
+            }, config.fadeInDelayMs);
+        }
+
+        /**
+         * Handles the mouse up or touch end event.
+         * If the fade sequence hasn't started, it reverts the image to its original state.
+         */
+        function handleRelease() {
+            if (!isPressed || fadeHasStarted) return;
+            isPressed = false;
+
+            const timeSincePress = Date.now() - pressAnimationStartTime;
+            const remainingPressAnimationTime = Math.max(0, config.clickScaleDownDurationMs - timeSincePress);
+
+            // Wait for the press animation to finish before reverting.
+            setTimeout(() => {
+                if (fadeHasStarted) return;
+                applyScale(1, config.clickScaleUpDurationMs);
+                toggleImage.src = config.image1Url;
+            }, remainingPressAnimationTime);
+        }
+
+        /**
+         * Handles the mouse enter event to scale the image up for a hover effect.
+         */
+        function handleMouseEnter() {
+            if (isPressed || fadeHasStarted) return;
+            applyScale(config.hoverScaleAmount, config.hoverDurationMs);
+        }
+
+        /**
+         * Handles the mouse leave event to revert the hover effect.
+         */
+        function handleMouseLeave() {
+            if (isPressed || fadeHasStarted) return;
+            applyScale(1, config.hoverDurationMs);
+        }
+
+
+        // --- INITIAL SETUP ---
+        window.onload = () => {
+            // Set the initial image size from the config object.
+            toggleImage.style.width = config.initialImageSize;
+            toggleImage.style.height = config.initialImageSize;
+
+            // Preload the second image to prevent a flicker on first click.
+            const preloadImage = new Image();
+            preloadImage.src = config.image2Url;
+
+            // Attach all the event listeners for desktop and mobile.
+            toggleImage.addEventListener('mousedown', handlePress);
+            toggleImage.addEventListener('touchstart', (e) => {
+                e.preventDefault(); // Prevent duplicate mouse events on touch devices
+                handlePress();
+            });
+
+            window.addEventListener('mouseup', handleRelease);
+            window.addEventListener('touchend', handleRelease);
+
+            toggleImage.addEventListener('mouseenter', handleMouseEnter);
+            toggleImage.addEventListener('mouseleave', handleMouseLeave);
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retro Boot-Up Loader</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        /* * Base styles for the page.
+         * A dark, radial gradient background is used for a clean look.
+         * Overflow is hidden to prevent scrollbars from appearing during animations.
+        */
+        body {
+            background-color: #000; /* Solid black background to prevent edge artifacts */
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            /* CSS variables for dynamic styling from JS */
+            --boot-screen-padding-y: 2rem;
+            --boot-screen-padding-x: 2rem;
+            --boot-screen-border-width: 2px;
+            --boot-screen-content-padding-top: 1rem;
+            --boot-screen-content-padding-right: 1rem;
+            --boot-screen-content-padding-bottom: 1rem;
+            --boot-screen-content-padding-left: 1rem;
+            --boot-screen-font-size: 16px;
+            --boot-screen-line-height: 1.5;
+            --fair-boot-logo-size: 48px;
+            --fair-boot-loader-track-width: 250px;
+            --fair-boot-loader-track-height: 20px;
+            --fair-boot-loader-block-width: 10px;
+        }
+
+
+        /* * This new wrapper handles the outer padding and centers the boot screen.
+        */
+        #bootScreenWrapper {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            padding-top: var(--boot-screen-padding-y);
+            padding-bottom: var(--boot-screen-padding-y);
+            padding-left: var(--boot-screen-padding-x);
+            padding-right: var(--boot-screen-padding-x);
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 400ms ease-in-out;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-sizing: border-box;
+        }
+
+        #bootScreenWrapper.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* * The boot screen now has a border and sits inside the wrapper.
+         * Its size animation is now controlled by JavaScript.
+        */
+        #bootScreen {
+            background-color: black;
+            color: #c0c0c0; /* Classic DOS gray */
+            font-family: 'Press Start 2P', cursive; /* New retro font */
+            font-size: var(--boot-screen-font-size);
+            border: var(--boot-screen-border-width) solid #c0c0c0;
+            overflow: hidden; /* Hide content until animation is done */
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            box-sizing: border-box; /* Ensures padding/border are included in width/height */
+        }
+
+        /* * This new container holds the text content.
+         * It fades in after the border has finished its animation.
+        */
+        #bootScreenContent {
+            height: 100%;
+            padding-top: var(--boot-screen-content-padding-top);
+            padding-right: var(--boot-screen-content-padding-right);
+            padding-bottom: var(--boot-screen-content-padding-bottom);
+            padding-left: var(--boot-screen-content-padding-left);
+            opacity: 0;
+            transition: opacity 200ms ease-in-out;
+            overflow-y: auto;
+            box-sizing: border-box;
+        }
+
+        #bootText {
+            margin: 0;
+            font-family: inherit;
+            line-height: var(--boot-screen-line-height);
+        }
+
+        /* * A classic blinking cursor for the boot screen.
+        */
+        .blinking-cursor {
+            display: none; /* Hidden by default, shown via JS */
+            animation: blink 1s step-end infinite;
+        }
+
+        @keyframes blink {
+            from, to { color: transparent; }
+            50% { color: #c0c0c0; }
+        }
+
+        /* --- Fair Boot Sequence Styles --- */
+        #fairBootScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: #000;
+            z-index: 1001;
+            display: none; /* Initially hidden */
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-family: 'Inter', sans-serif;
+        }
+
+        #fairBootContent {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            opacity: 0; /* Starts invisible, faded in by JS */
+        }
+
+        .fair-logo {
+            font-size: var(--fair-boot-logo-size); /* Controlled by JS */
+            font-weight: 200;
+            letter-spacing: 2px;
+        }
+
+        .fair-logo span {
+            font-weight: 700;
+        }
+
+        #loadingBarContainer {
+            width: var(--fair-boot-loader-track-width);
+            height: var(--fair-boot-loader-track-height);
+            margin-top: 2rem;
+            border: 1px solid #555;
+            border-radius: 2px;
+            background-color: #1a1a1a;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #loadingMarquee {
+            position: absolute;
+            height: 100%;
+            display: flex;
+            /* Animation is now set by JS */
+        }
+
+        .loading-block {
+            width: var(--fair-boot-loader-block-width);
+            height: 100%;
+            background: linear-gradient(90deg, #0052a2, #0078d7, #39a1ff);
+            margin: 0 1px;
+            border-radius: 1px;
+        }
+
+        /* Keyframes are now generated by JS */
+
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+
+
+
+    <div id="bootScreenWrapper">
+        <div id="bootScreen">
+            <div id="bootScreenContent">
+                <pre id="bootText"></pre>
+                <div id="cursor" class="blinking-cursor">_</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="fairBootScreen">
+        <div id="fairBootContent">
+            <div class="fair-logo">
+                fair<span>OS</span>
+            </div>
+            <div id="loadingBarContainer">
+                <div id="loadingMarquee">
+                    </div>
+            </div>
+        </div>
+    </div>
+  <audio id="boot-sound" src="boot.mp3" preload="auto"></audio>
+    <script>
+        // --- CONFIGURATION: All animation and style settings are here ---
+        const config = {
+            fadeToBlackDurationMs: 180,
+            fadeInDelayMs: 200,
+            bootScreenPaddingY: "2rem",
+            bootScreenPaddingX: "2rem",
+            bootScreenBorderWidth: "2px",
+            bootScreenContentPaddingTop: "0rem",
+            bootScreenContentPaddingRight: "1rem",
+            bootScreenContentPaddingBottom: "1rem",
+            bootScreenContentPaddingLeft: "4.5rem",
+            bootScreenFontSize: "16px",
+            fairBootLogoSize: "120px",
+            bootScreenLineHeight: "2",
+            bootSequenceLineDelayMs: 25,
+            bootSequenceRandomnessMs: 20,
+            bootScreenInitialSize: '40px',
+            bootScreenAnimateDurationMs: 300,
+            bootScreenContentFadeInDurationMs: 200,
+            bootScreenAnimateSteps: 6,
+            fairBootTransitionDelayMs: 200,
+            fairBootContentFadeInDurationMs: 500,
+            fairBootContentFadeInSteps: 10,
+            // New loader config
+            fairBootLoaderTrackWidth: "300px",
+            fairBootLoaderTrackHeight: "22px",
+            fairBootLoaderBlockWidth: "12px",
+            fairBootLoaderBlockCount: 5,
+            fairBootLoaderMarqueeDurationMs: 1500, // Duration of the marquee animation
+            fairBootLoaderMarqueeSteps: 12, // Number of steps for a posterized effect
+            finishMessageDelayMs: 450, // Delay before sending the 'boot_finished' message
+        };
+
+        // --- BOOT SCREEN CONTENT ---
+        const bootLines = [
+            'Award Modular BIOS v4.51PGM, An Energy Star Ally',
+            'Copyright (C) 1984-97, Award Software, Inc.',
+            '',
+            'Gemini Retro-Computing BIOS v2.0',
+            'Checking System Health...',
+            'CPU Core Voltage ..... 2.8 V',
+            '<CPU ID:GEMINI-2024-PRO>',
+            'Memory Test .......... 32768K OK',
+            '',
+            'Award Plug and Play BIOS Extension v1.0A',
+            'Detecting IDE Primary Master ... VFS_WORK_FILES',
+            'Detecting IDE Primary Slave  ... 3D_RENDERER_v3.1',
+            'Detecting IDE Secondary Master ... INTERACTIVE_ENV',
+            '',
+            'Initializing Plug and Play Cards... OK',
+            'Mouse Initialized...',
+            '',
+            'Loading Creative DOS Multimedia Architecture (v1.00)...',
+            'Decompressing Work Files... OK',
+            'Calculating 3D Vectors... OK',
+            'Compiling Pixel Shaders... OK',
+            'Establishing Connection to Retro-Verse... OK',
+            '',
+            'Starting MS-DOS...',
+        ];
+
+        // --- DOM Element References ---
+        const bootScreenWrapper = document.getElementById('bootScreenWrapper');
+        const bootScreen = document.getElementById('bootScreen');
+        const bootScreenContent = document.getElementById('bootScreenContent');
+        const fairBootScreen = document.getElementById('fairBootScreen');
+        const fairBootContent = document.getElementById('fairBootContent');
+        const loadingMarquee = document.getElementById('loadingMarquee');
+
+
+        // --- MANUAL ANIMATION FOR STUTTER EFFECT ---
+        function animateStutter(element, properties, durationMs, steps, onComplete) {
+            let currentStep = 0;
+            const stepDuration = durationMs / steps;
+
+            const intervalId = setInterval(() => {
+                currentStep++;
+                if (currentStep > steps) {
+                    clearInterval(intervalId);
+                    // Ensure final state is set correctly
+                    for (const prop of properties) {
+                        element.style[prop.name] = prop.endValue + (prop.unit || '');
+                    }
+                    if (onComplete) onComplete();
+                    return;
+                }
+
+                for (const prop of properties) {
+                    const valueRange = prop.endValue - prop.startValue;
+                    const increment = valueRange / steps;
+                    const currentValue = prop.startValue + (increment * currentStep);
+                    if (prop.name === 'transform') {
+                        element.style.transform = `scale(${currentValue})`;
+                    } else {
+                        element.style[prop.name] = currentValue + (prop.unit || '');
+                    }
+                }
+            }, stepDuration);
+        }
+
+        // --- SECOND BOOT SEQUENCE ---
+        function showFairBootSequence() {
+            // Instantly hide the first screen and show the black background of the second.
+            bootScreenWrapper.style.display = 'none';
+            fairBootScreen.style.display = 'flex';
+
+            // After a tiny delay, trigger the jittery fade-in of the content.
+            setTimeout(() => {
+                animateStutter(fairBootContent,
+                    [{ name: 'opacity', startValue: 0, endValue: 1 }],
+                    config.fairBootContentFadeInDurationMs,
+                    config.fairBootContentFadeInSteps
+                );
+            }, 50);
+
+            // Send a message to the parent window after the specified delay
+            setTimeout(() => {
+                window.parent.postMessage('boot_finished', '*');
+            }, config.finishMessageDelayMs);
+        }
+
+        // --- FIRST BOOT SEQUENCE ---
+        function startBootSequence() {
+            const bootTextEl = document.getElementById('bootText');
+            const cursorEl = document.getElementById('cursor');
+
+            bootScreenContent.style.transitionDuration = `${config.bootScreenContentFadeInDurationMs}ms`;
+            bootScreenContent.style.opacity = 1;
+
+            setTimeout(() => {
+                cursorEl.style.display = 'inline-block';
+
+                let lineIndex = 0;
+
+                function typeLine() {
+                    if (lineIndex < bootLines.length) {
+                        bootTextEl.textContent += bootLines[lineIndex] + '\n';
+                        bootScreenContent.scrollTop = bootScreenContent.scrollHeight;
+                        lineIndex++;
+                        const delay = bootLines[lineIndex - 1] === '' ?
+                            config.bootSequenceLineDelayMs * 4 :
+                            config.bootSequenceLineDelayMs + Math.random() * config.bootSequenceRandomnessMs;
+                        setTimeout(typeLine, delay);
+                    } else {
+                        bootTextEl.textContent += '\nC:\\> LOAD_SCENE.EXE\n';
+                        bootScreenContent.scrollTop = bootScreenContent.scrollHeight;
+                        setTimeout(() => {
+                            bootTextEl.textContent += '> Loading 3D Environment...';
+                            bootScreenContent.scrollTop = bootScreenContent.scrollHeight;
+                            cursorEl.style.display = 'none';
+                            // --- Trigger the second boot sequence ---
+                            setTimeout(showFairBootSequence, config.fairBootTransitionDelayMs);
+                        }, 500);
+                    }
+                }
+                typeLine();
+            }, config.bootScreenContentFadeInDurationMs);
+        }
+
+        // --- DYNAMIC LOADER SETUP ---
+        function setupFairBootLoader() {
+             // 1. Create loader blocks
+            for (let i = 0; i < config.fairBootLoaderBlockCount; i++) {
+                const block = document.createElement('div');
+                block.className = 'loading-block';
+                loadingMarquee.appendChild(block);
+            }
+
+            // 2. Create dynamic keyframes for the marquee animation
+            const blockWidth = parseFloat(config.fairBootLoaderBlockWidth);
+            const blockMargin = 2; // 1px on each side
+            const marqueeWidth = config.fairBootLoaderBlockCount * (blockWidth + blockMargin);
+            const trackWidth = parseFloat(config.fairBootLoaderTrackWidth);
+
+            const keyframes = `
+                @keyframes marquee-anim {
+                    0% { transform: translateX(-${marqueeWidth}px); }
+                    100% { transform: translateX(${trackWidth}px); }
+                }
+            `;
+
+            // 3. Inject keyframes into the document
+            const styleSheet = document.createElement("style");
+            styleSheet.type = "text/css";
+            styleSheet.innerText = keyframes;
+            document.head.appendChild(styleSheet);
+
+            // 4. Apply the posterized animation to the marquee
+            loadingMarquee.style.animation = `marquee-anim ${config.fairBootLoaderMarqueeDurationMs}ms steps(${config.fairBootLoaderMarqueeSteps}, end) infinite`;
+        }
+
+        // --- FUNCTION TO INITIATE THE ENTIRE BOOT-UP VISUAL SEQUENCE ---
+        function beginBootUp() {
+            bootScreenWrapper.style.transitionDuration = `${config.fadeToBlackDurationMs}ms`;
+            bootScreenWrapper.classList.add('visible');
+
+            setTimeout(() => {
+                bootScreen.style.transition = 'none';
+                const computedStyle = getComputedStyle(bootScreenWrapper);
+                const paddingX = parseFloat(computedStyle.paddingLeft) + parseFloat(computedStyle.paddingRight);
+                const paddingY = parseFloat(computedStyle.paddingTop) + parseFloat(computedStyle.paddingBottom);
+
+                const finalWidth = window.innerWidth - paddingX;
+                const finalHeight = window.innerHeight - paddingY;
+
+                animateStutter(bootScreen,
+                    [
+                        { name: 'width', startValue: parseFloat(config.bootScreenInitialSize), endValue: finalWidth, unit: 'px' },
+                        { name: 'height', startValue: parseFloat(config.bootScreenInitialSize), endValue: finalHeight, unit: 'px' }
+                    ],
+                    config.bootScreenAnimateDurationMs,
+                    config.bootScreenAnimateSteps
+                );
+            }, 10);
+
+            setTimeout(startBootSequence, config.fadeToBlackDurationMs + config.bootScreenAnimateDurationMs);
+            const bootSound = document.getElementById('boot-sound'); // Get the audio element
+                if (bootSound) {
+                    bootSound.play().catch(error => {
+                        console.error("Error playing boot sound:", error);
+                        // This catch block is important for handling Autoplay Policy issues.
+                    });
+                }
+        }
+
+        // --- INITIAL SETUP ---
+        window.onload = () => {
+            // Set styles from config object
+            document.body.style.setProperty('--boot-screen-padding-y', config.bootScreenPaddingY);
+            document.body.style.setProperty('--boot-screen-padding-x', config.bootScreenPaddingX);
+            document.body.style.setProperty('--boot-screen-border-width', config.bootScreenBorderWidth);
+            document.body.style.setProperty('--boot-screen-content-padding-top', config.bootScreenContentPaddingTop);
+            document.body.style.setProperty('--boot-screen-content-padding-right', config.bootScreenContentPaddingRight);
+            document.body.style.setProperty('--boot-screen-content-padding-bottom', config.bootScreenContentPaddingBottom);
+            document.body.style.setProperty('--boot-screen-content-padding-left', config.bootScreenContentPaddingLeft);
+            document.body.style.setProperty('--boot-screen-font-size', config.bootScreenFontSize);
+            document.body.style.setProperty('--boot-screen-line-height', config.bootScreenLineHeight);
+            document.body.style.setProperty('--fair-boot-logo-size', config.fairBootLogoSize);
+            document.body.style.setProperty('--fair-boot-loader-track-width', config.fairBootLoaderTrackWidth);
+            document.body.style.setProperty('--fair-boot-loader-track-height', config.fairBootLoaderTrackHeight);
+            document.body.style.setProperty('--fair-boot-loader-block-width', config.fairBootLoaderBlockWidth);
+
+            bootScreen.style.width = config.bootScreenInitialSize;
+            bootScreen.style.height = config.bootScreenInitialSize;
+
+            setupFairBootLoader(); // Set up the dynamic loader
+
+            // --- WAIT FOR MESSAGE TO START THE BOOT SEQUENCE ---
+            window.addEventListener('message', function(event) {
+                // IMPORTANT: Add origin check for security in a real application
+                // if (event.origin !== 'http://your-trusted-domain.com') return;
+
+                if (event.data === 'beginBoot') {
+                    beginBootUp();
+                }
+            });
+        };
+    </script>
+</body>
+</html>

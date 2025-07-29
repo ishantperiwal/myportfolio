@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Toggle Button</title>
+    <!-- Tailwind CSS CDN for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for the radial gradient background */
+        body {
+            background: radial-gradient(circle at center,#090909, black);
+            font-family: 'Inter', sans-serif; /* Using Inter font as per instructions */
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+    <!-- Main container for the image button, centered on the page -->
+    <div class="flex items-center justify-center w-full p-6">
+        <!-- The image element that acts as a button -->
+        <img
+            id="toggleImage"
+            src="1.png"
+            alt="Toggle Button"
+            class="rounded-full cursor-pointer transition-transform duration-200 ease-out transform hover:scale-100 active:scale-98 shadow-lg"
+            style="width: 350px; height: auto; object-fit: contain;"
+            onerror="this.onerror=null;this.src='https://placehold.co/350x350/CCCCCC/000000?text=Error';"
+        >
+    </div>
+
+    <script>
+        // Get a reference to the image element
+        const toggleImage = document.getElementById('toggleImage');
+
+        // Define the URLs for the two image states
+        // These are now directly pointing to the local files as per your request
+        const image1Url = "1.png"; // Represents 1.png
+        const image2Url = "2.png"; // Represents 2.png
+
+        /**
+         * Event listener for when the mouse button is pressed down on the image.
+         * Changes the image source to image2Url.
+         */
+        toggleImage.addEventListener('mousedown', () => {
+            toggleImage.src = image2Url;
+        });
+
+        /**
+         * Event listener for when the mouse button is released from the image.
+         * Changes the image source back to image1Url.
+         */
+        toggleImage.addEventListener('mouseup', () => {
+            toggleImage.src = image1Url;
+        });
+
+        /**
+         * Optional: Add touch event listeners for mobile devices.
+         * This ensures the button works on touch screens as well.
+         */
+        toggleImage.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // Prevent default touch behavior like scrolling
+            toggleImage.src = image2Url;
+        });
+
+        toggleImage.addEventListener('touchend', (e) => {
+            e.preventDefault(); // Prevent default touch behavior
+            toggleImage.src = image1Url;
+        });
+
+        // Ensure the image starts with the first image when the page loads
+        window.onload = () => {
+            toggleImage.src = image1Url;
+        };
+    </script>
+</body>
+</html>

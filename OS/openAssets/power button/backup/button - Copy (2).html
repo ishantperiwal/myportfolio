@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Toggle Button</title>
+    <!-- Tailwind CSS for utility classes -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts for the Inter font family -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* * Base styles for the page.
+         * A dark, radial gradient background is used for a clean look.
+         * Overflow is hidden to prevent scrollbars from appearing during animations.
+        */
+        body {
+            background: radial-gradient(circle at center, #090909, black);
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+
+        /* * The image element's transitions are now fully managed by JavaScript.
+         * This prevents conflicts between CSS rules and dynamic inline styles,
+         * ensuring that the duration variables in the script are always respected.
+        */
+        #toggleImage {
+            transform: scale(1); /* Set initial scale */
+        }
+
+        /* * The overlay is used for the fade-to-black effect.
+         * It's fixed to cover the whole screen and starts as invisible and non-interactive.
+         * The transition is now fully managed by JavaScript to prevent CSS conflicts.
+        */
+        #fadeOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: black;
+            opacity: 0;
+            pointer-events: none; /* Allows clicks to pass through when invisible */
+            z-index: 999;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+
+    <!-- The image that acts as our interactive button -->
+    <img
+        id="toggleImage"
+        src="1.png"
+        alt="Toggle Button"
+        class="rounded-full cursor-pointer shadow-lg"
+        style="width: 350px; height: auto; object-fit: contain;"
+        onerror="this.onerror=null;this.src='https://placehold.co/350x350/CCCCCC/000000?text=Image+Error';"
+    >
+
+    <!-- The full-screen overlay element for the fade effect -->
+    <div id="fadeOverlay"></div>
+
+    <script>
+        // --- CONFIGURATION: All animation and style settings are here ---
+        const config = {
+            clickScaleDownAmount: 0.90,      // How much the image shrinks on press
+            clickScaleDownDurationMs: 200,   // Duration of the shrink animation
+            clickScaleUpDurationMs: 350,     // Duration of the grow-back animation
+            hoverScaleAmount: 1.05,          // How much the image grows on hover
+            hoverDurationMs: 350,            // Duration of the hover animation
+            imageWidthPx: 350,               // The width of the image in pixels
+            fadeToBlackDurationMs: 400,      // Duration of the black overlay fade-in
+            fadeInDelayMs: 300,              // Delay before the fade-in begins after press
+            image1Url: "1.png",              // The default image
+            image2Url: "2.png"               // The image shown when pressed
+        };
+
+        // --- DOM Element References ---
+        const toggleImage = document.getElementById('toggleImage');
+        const fadeOverlay = document.getElementById('fadeOverlay');
+
+        // --- State Variables ---
+        let isPressed = false; // Tracks if the mouse/touch is currently down
+        let pressAnimationStartTime = 0; // Tracks when the press animation began
+        let overlayHasFadedIn = false; // Tracks if the overlay has appeared
+
+        /**
+         * A utility function to apply a scale transform with a specific duration.
+         * This is the single source of truth for all image scaling animations.
+         * @param {number} scale - The target scale value (e.g., 1.0, 0.9).
+         * @param {number} durationMs - The animation duration in milliseconds.
+         */
+        function applyScale(scale, durationMs) {
+            toggleImage.style.transition = `transform ${durationMs}ms ease-out`;
+            toggleImage.style.transform = `scale(${scale})`;
+        }
+
+        // --- Event Handler Functions ---
+
+        /**
+         * Handles the 'mousedown' and 'touchstart' events.
+         * Scales the image down, changes the source, and schedules the overlay to fade in.
+         */
+        function handlePress() {
+            // Prevent new presses if the overlay is already visible
+            if (overlayHasFadedIn) return;
+
+            isPressed = true;
+            pressAnimationStartTime = Date.now(); // Record the start time of the animation
+            applyScale(config.clickScaleDownAmount, config.clickScaleDownDurationMs);
+            toggleImage.src = config.image2Url;
+
+            // Wait for the specified delay before starting the fade-in.
+            setTimeout(() => {
+                // FIX: The fade-in should happen even on a quick click and only once.
+                if (overlayHasFadedIn) return;
+                overlayHasFadedIn = true;
+
+                fadeOverlay.style.transition = `opacity ${config.fadeToBlackDurationMs}ms ease-in-out`;
+                fadeOverlay.style.opacity = 1;
+                fadeOverlay.style.pointerEvents = 'auto'; // Make overlay interactive
+            }, config.fadeInDelayMs);
+        }
+
+        /**
+         * Handles the 'mouseup' and 'touchend' events.
+         * Ensures the press animation completes, then scales the image up and reverts the source.
+         */
+        function handleRelease() {
+            // Guard clause: only run if a press was active.
+            if (!isPressed) return;
+            isPressed = false;
+
+            // Ensure the scale-down animation has time to finish before scaling up.
+            const timeSincePress = Date.now() - pressAnimationStartTime;
+            const remainingPressAnimationTime = Math.max(0, config.clickScaleDownDurationMs - timeSincePress);
+
+            setTimeout(() => {
+                // Don't scale back up if the overlay is already visible
+                if (overlayHasFadedIn) return;
+                applyScale(1, config.clickScaleUpDurationMs);
+                toggleImage.src = config.image1Url;
+            }, remainingPressAnimationTime);
+        }
+
+        /**
+         * Handles the 'mouseenter' event for the hover effect.
+         */
+        function handleMouseEnter() {
+            // Prevent hover effects if the button is pressed or the overlay is visible
+            if (isPressed || overlayHasFadedIn) return;
+            applyScale(config.hoverScaleAmount, config.hoverDurationMs);
+        }
+
+        /**
+         * Handles the 'mouseleave' event for the hover effect.
+         */
+        function handleMouseLeave() {
+            // Prevent hover effects if the button is pressed or the overlay is visible
+            if (isPressed || overlayHasFadedIn) return;
+            applyScale(1, config.hoverDurationMs);
+        }
+
+        // --- Initial Setup on Page Load ---
+        window.onload = () => {
+            // Set initial styles from the config
+            toggleImage.src = config.image1Url;
+            toggleImage.style.width = `${config.imageWidthPx}px`;
+
+            // Preload the second image to prevent a flash/flicker on the first press.
+            const preloadImage = new Image();
+            preloadImage.src = config.image2Url;
+
+            // --- Event Listeners ---
+
+            // Press events on the image itself
+            toggleImage.addEventListener('mousedown', handlePress);
+            toggleImage.addEventListener('touchstart', (e) => {
+                e.preventDefault(); // Prevents duplicate mouse events on touch devices
+                handlePress();
+            });
+
+            // Release events on the entire window to catch them even if the cursor moves
+            window.addEventListener('mouseup', handleRelease);
+            window.addEventListener('touchend', handleRelease);
+
+            // Hover events on the image
+            toggleImage.addEventListener('mouseenter', handleMouseEnter);
+            toggleImage.addEventListener('mouseleave', handleMouseLeave);
+        };
+    </script>
+</body>
+</html>

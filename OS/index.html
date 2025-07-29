@@ -1,0 +1,2014 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Y2K OS UI - Dynamic</title>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+    <style>
+        /* --- Base Styles & Y2K Theme --- */
+        :root {
+            --background-color: #1a1a1a;
+            --grid-line-color: #333333;
+            --window-border-color: #000000;
+            --window-bg-color: #d6d6d6;
+            --text-color: #000000;
+            --start-menu-bg: #d6d6d6;
+            --start-menu-text: #000000;
+            --start-button-bg: #008000;
+            --taskbar-item-active-bg: #a8a8a8;
+            --theme-pink: #ff98e7;
+            --theme-green: #a3ff98;
+            --theme-blue: #98d2ff;
+            --selection-color: #000080;
+            --boot-fade-duration: 1s;
+            --black-overlay-fade-duration: 1.5s;
+            --grid-thickness: 1px;
+            --scanline-intensity: 0.1;
+            --submenu-offset-x: -8px; /* Default horizontal offset */
+            --submenu-offset-y: -16px; /* Default vertical offset */
+        }
+
+        body, html {
+            height: 100%; margin: 0; padding: 0; overflow: hidden;
+            font-family: 'VT323', monospace; background-color: var(--background-color);
+            background-image:
+                linear-gradient(var(--grid-line-color) var(--grid-thickness), transparent var(--grid-thickness)),
+                linear-gradient(90deg, var(--grid-line-color) var(--grid-thickness), transparent var(--grid-thickness));
+            background-size: 60px 60px; color: var(--text-color);
+            position: relative; border-radius: 50px;
+            background-position: -1px -1px; /* Offset the grid */
+            user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none;
+            cursor: none !important;
+        }
+
+        #custom-cursor {
+            position: fixed;
+            width: 36px;
+            height: 49px;
+            background-image: url('cursors/cursor.png');
+            background-size: contain;
+            background-repeat: no-repeat;
+            pointer-events: none;
+            z-index: 99999;
+            transition: transform 0.1s ease-out;
+            left: -100px; /* Start off-screen */
+            top: -100px;
+        }
+
+        #custom-cursor.clicked {
+            transform: scale(0.8);
+        }
+
+        #boot-iframe, #black-overlay, #vignette-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            border: none;
+        }
+        #boot-iframe { z-index: 99999; transition: opacity var(--boot-fade-duration) ease-in; opacity: 1; }
+        #black-overlay { z-index: 99998; background-color: #000; transition: opacity var(--black-overlay-fade-duration) ease-out; opacity: 1; }
+        #vignette-overlay {
+            pointer-events: none;
+            z-index: 10001;
+            border-radius: 0px;
+            background-image: url('overlay.png'),
+                              repeating-linear-gradient(0deg, rgba(0, 0, 0, var(--scanline-intensity)), rgba(0, 0, 0, var(--scanline-intensity)) 1px, transparent 1px, transparent 3px);
+            background-size: 100% 100%, auto;
+        }
+
+        .desktop-icons {
+            position: absolute;
+            top: 30px;
+            left: 30px;
+            display: flex;
+            flex-direction: column;
+            flex-wrap: wrap;
+            align-content: flex-start;
+            gap: 20px 40px; /* Row gap, Column gap */
+            height: calc(100% - 100px); /* Full height minus taskbar and padding */
+            z-index: 1;
+        }
+        .desktop-icon {
+            display: flex; flex-direction: column; align-items: center; text-align: center;
+            width: 150px; padding: 8px; border: 1px solid transparent;
+        }
+        .desktop-icon .icon-bg {
+            width: 90px; height: 90px; margin-bottom: 12px;
+           display: flex; align-items: center; justify-content: center;
+        }
+        .desktop-icon svg, .desktop-icon img { width: 80px; height: 80px; }
+        .desktop-icon span { color: #fff; background-color: transparent; padding: 3px 6px; font-size: 30px; }
+        .desktop-icon.selected span { background-color: var(--selection-color); color: #fff; }
+
+        .window {
+            position: absolute; border: 4px solid var(--window-border-color);
+            box-shadow: 12px 12px 0px rgba(0,0,0,0.7); background-color: var(--window-bg-color);
+            display: flex; flex-direction: column; border-radius: 10px;
+            transform-origin: center center;
+            transition: top 0.3s ease, left 0.3s ease, width 0.3s ease, height 0.3s ease;
+        }
+        .window.hidden { display: none; }
+
+        @keyframes scaleUpPosterize {
+            0% { transform: scale(0.5); opacity: 0; filter: brightness(1.5) contrast(1.2) saturate(0); }
+            100% { transform: scale(1); opacity: 1; filter: none; }
+        }
+        .window-opening {
+            animation: scaleUpPosterize 300ms cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes scaleDownToNotification {
+            from { transform: translate(0, 0) scale(1); opacity: 1; }
+            to { transform: translate(var(--target-x), var(--target-y)) scale(0); opacity: 0; }
+        }
+        .window-minimizing {
+            transform-origin: bottom right;
+            animation: scaleDownToNotification 400ms ease-in forwards;
+        }
+
+        .title-bar {
+            background-color: var(--window-bg-color); color: var(--text-color); padding: 8px 12px;
+            font-size: 36px; display: flex; align-items: center; gap: 12px;
+            user-select: none; border-bottom: 4px solid var(--window-border-color); border-radius: 4px 4px 0 0;
+        }
+        .title-bar-icon { width: 32px; height: 32px; flex-shrink: 0; }
+        .title-text { flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .title-bar-buttons { display: flex; margin-left: auto; }
+        .title-bar-button {
+            width: 44px; height: 34px; border: 2px solid var(--window-border-color); margin-left: 8px;
+            background-color: var(--window-bg-color); display: flex; align-items: center; justify-content: center;
+            font-size: 28px; line-height: 28px;  border-radius: 6px;
+            font-weight: bold;
+        }
+        .title-bar-button:hover {
+            background-color: var(--text-color);
+            color: var(--window-bg-color);
+        }
+        .title-bar-button:active { border-style: inset; }
+
+
+        .close-circle-btn, .maximize-circle-btn {
+            width: 24px; /* Smaller width for circle */
+            height: 24px; /* Smaller height for circle */
+            border-radius: 50%; /* Make them circular */
+            margin-left: 10px; /* Adjust margin if needed */
+            border: 3px solid var(--window-border-color); /* Keep the border */
+            display: flex; /* Ensure flex for centering content */
+            align-items: center;
+            justify-content: center;
+            font-size: 24px; /* Adjust font size for the symbols */
+            line-height: 1; /* Ensure single line-height for vertical centering */
+            font-weight: bold;
+            color: var(--text-color); /* Default text color, will be overridden by specific ones */
+        }
+
+        .close-circle-btn {
+            background-color: #e18350; /* Red color */
+            color: white; /* White cross */
+        }
+        .close-circle-btn::before {
+            content: ''; /* Cross symbol */
+        }
+
+        .maximize-circle-btn {
+            background-color: #e5bf29; /* Yellow color */
+            color: var(--text-color); /* Black border symbol if you add one */
+        }
+
+        .close-circle-btn:hover {
+              background-color: #ec9565; /* Darker red on hover */
+          }
+          .maximize-circle-btn:hover {
+              background-color: #f7d346; /* Darker yellow on hover */
+          }
+          .close-circle-btn:active, .maximize-circle-btn:active {
+              border-style: solid; /* Standard Y2K active effect */
+          }
+
+
+        .content {
+            flex-grow: 1; padding: 20px; overflow: auto; font-size: 28px;
+            position: relative;
+            background: white;
+        }
+        .content img, .content video { max-width: 100%; height: auto; }
+        .content iframe { width: 100%; height: 100%; border: none; }
+
+        .window-theme-dark .title-bar {
+            background-color: #1a1a1a;
+            color: #ffffff;
+            border-bottom: 4px solid #444444;
+        }
+
+        .checkerboard {
+            background-color: #fff;
+            background-image:
+                linear-gradient(45deg, #ccc 25%, transparent 25%),
+                linear-gradient(-45deg, #ccc 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #ccc 75%),
+                linear-gradient(-45deg, transparent 75%, #ccc 75%);
+            background-size: 60px 60px;
+        }
+
+        .status-bar {
+            position: fixed; bottom: -19px; left: 0; width: 100%; background-color: var(--window-bg-color);
+            color: var(--text-color); padding: 12px 12px 30px 12px; border-top: 4px solid var(--window-border-color);
+            font-size: 32px; z-index: 10000; display: flex; align-items: center;
+        }
+        .start-button {
+            padding: 6px 20px; font-size: 34px; background-color: var(--theme-green); color: var(--text-color);
+            border: 2px solid var(--window-border-color);  font-weight: bold;
+            flex-shrink: 0; border-radius: 8px; margin-left: 25px;
+        }
+        .start-button:active { border-style: inset; }
+        .start-menu {
+            position: absolute; bottom: 78px; width: 400px; border-radius: 10px; z-index: 9999; display: none;
+            color: var(--start-menu-text); background-color: var(--start-menu-bg);
+            border: 4px solid var(--window-border-color);
+        }
+        .start-menu.show { display: block; }
+        .start-menu-list { list-style: none; padding: 12px; margin: 0; }
+        .start-menu-item {
+            padding: 16px 20px; font-size: 32px;   display: flex; align-items: center; gap: 15px;
+            position: relative; /* For submenu positioning */
+        }
+        .start-menu-item:hover { background-color: var(--theme-blue); color: var(--text-color); }
+        .start-menu-separator { height: 4px; background-color: var(--window-border-color); margin: 12px 0; }
+        .start-menu-item-icon { width: 32px; height: 32px; }
+        .submenu-arrow {
+            margin-left: auto;
+            border: solid var(--text-color);
+            border-width: 0 4px 4px 0;
+            display: inline-block;
+            padding: 4px;
+            transform: rotate(-45deg);
+        }
+        .submenu {
+            display: none;
+            position: absolute;
+            left: calc(100% + var(--submenu-offset-x));
+            top: var(--submenu-offset-y);
+            width: 300px;
+            background-color: var(--start-menu-bg);
+            border: 4px solid var(--window-border-color);
+            list-style: none;
+            padding: 12px;
+            margin: 0;
+            border-radius: 10px;
+        }
+        .submenu.visible {
+            display: block;
+        }
+
+
+        .taskbar { flex-grow: 1; display: flex; align-items: center; gap: 12px; margin: 0 12px; overflow: hidden; }
+        .taskbar-item {
+            padding: 5px 16px; max-width: 300px; gap: 12px; font-size: 28px; background-color: var(--window-bg-color);
+            border: 2px solid var(--window-border-color); color: var(--text-color); white-space: nowrap;
+              flex-shrink: 1; display: flex; align-items: center; border-radius: 3px;
+        }
+        .taskbar-item.active { background-color: var(--taskbar-item-active-bg); border-style: inset; font-weight: bold; }
+        .taskbar-icon { width: 28px; height: 28px; }
+        .taskbar-icon img, .taskbar-icon svg{
+          width: 28px; height: 28px;
+        }
+
+        .notification-area {
+            display: flex; align-items: center; gap: 20px; padding: 0 12px;
+            margin-left: auto; flex-shrink: 0; margin-right: 36px;
+            border-left: 4px solid #aaa;
+        }
+        #notification-icons-container { display: flex; align-items: center; gap: 20px; }
+        .notification-icon {   }
+        .notification-icon.hidden { display: none; }
+        .notification-icon svg, .notification-icon img { width: 36px; height: 36px; }
+        #clock { font-size: 32px; }
+
+        .music-player {
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            gap: 20px; background-color: #fdf5e6; padding: 20px; box-sizing: border-box;
+            color: #444; height: 100%; border-radius: 5px;
+        }
+        .song-info { display: flex; flex-direction: column; align-items: center; gap: 0px; text-align: center; }
+        .album-art {
+            position: relative;
+            width: 160px;
+            height: 160px;
+            margin-bottom: 12px;
+          }
+          .album-art-image,
+          .cd-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+          }
+          .album-art-image {
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            border: 4px solid #00000075;
+            object-fit: cover;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2;
+          }
+          .cd-overlay {
+            z-index: 1;
+          }
+        .song-title { font-size: 32px; font-weight: bold;  margin: 10px;}
+        .artist-name { font-size: 24px; margin: 0;}
+        .player-controls { display: flex; justify-content: center; align-items: center; gap: 30px; width: 100%; }
+        .player-button { background: none; border: none;   padding: 0; display: flex; align-items: center; justify-content: center; }
+        .player-button svg { width: 48px; height: 48px; fill: #4f3300; }
+        .player-button.play-pause svg { width: 64px; height: 64px; }
+
+        .storage-body-wrapper {
+            display: flex;
+            flex-direction: row;
+            flex-grow: 1;
+            overflow: hidden;
+        }
+        .storage-sidebar {
+            width: 220px;
+            flex-shrink: 0;
+            border-right: 2px solid #88888841;
+            padding: 20px;
+            padding-top: 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            background-color: #e5e5e5;
+            overflow-y: auto;
+            border-radius: 0 0 0 10px;
+        }
+        .sidebar-icon-large {
+            width: 128px;
+            height: 128px;
+            margin-bottom: 10px
+        }
+        .sidebar-icon-large svg, .sidebar-icon-large img {
+            width: 100%;
+            height: 100%;
+        }
+        .sidebar-separator {
+            width: 100%;
+            height: 2px;
+            background-color: var(--window-border-color);
+            opacity: 0.2;
+            display: none;
+        }
+        .sidebar-details {
+            font-size: 26px;
+            text-align: left;
+            word-wrap: break-word;
+            width: 90%;
+        }
+        .storage-main-pane {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .storage-container {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            align-content: flex-start;
+            gap: 20px;
+            padding: 20px;
+            flex-grow: 1;
+            overflow-y: auto;
+            background: white;
+            border-radius: 0 0 8px 0;
+        }
+        .storage-nav {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            border-bottom: 2px solid #888;
+            background-color: #c0c0c0;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+        .address-bar-container {
+            display: flex;
+            align-items: center;
+            background-color: white;
+            border: 2px solid #888;
+            padding: 4px 8px;
+            width: 100%;
+            pointer-events: none;
+            border-radius: 5px;
+        }
+        .address-bar-label {
+             font-size: 28px;
+             color: #555;
+             margin-right: 8px;
+             text-transform: capitalize;
+        }
+        .address-bar {
+            width: 100%;
+            font-family: 'VT323', monospace;
+            font-size: 28px;
+            border: none;
+            background: transparent;
+            outline: none;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: 1.2;
+        }
+        .storage-icon {
+            display: flex; flex-direction: column; align-items: center; text-align: center;
+              width: 150px; padding: 8px; border: 1px solid transparent;
+        }
+        .storage-icon .icon-bg {
+            width: 90px; height: 90px; margin-bottom: 12px; display: flex;
+            align-items: center; justify-content: center;
+        }
+        .storage-icon svg, .storage-icon img { width: 80px; height: 80px; }
+        .storage-icon span { color: var(--text-color); font-size: 30px; }
+        .storage-icon.selected span { background-color: var(--selection-color); color: #fff; }
+        .back-button {
+            background: var(--window-bg-color); border: 2px solid var(--window-border-color);
+            border-radius: 5px; padding: 5px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .back-button svg { width: 24px; height: 24px; }
+
+        .window.dragging {
+            transition: none;
+        }
+
+        .title-bar-icon img,
+        .title-bar-icon svg {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        /* --- Showcase Window Styles --- */
+        .showcase-container {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            height: 100%;
+            padding: 16px;
+            box-sizing: border-box;
+            background-color: #e0e0e0;
+            border-radius: 6px;
+        }
+        .showcase-card {
+            display: flex;
+            gap: 32px;
+            padding: 24px;
+            background-color: var(--window-bg-color);
+            border: 2px solid #a0a0a0;
+            border-radius: 8px;
+        }
+        .showcase-card-image {
+            width: 180px;
+            height: 180px;
+            object-fit: cover;
+            border: 3px solid var(--window-border-color);
+            flex-shrink: 0;
+            border-radius: 4px;
+        }
+        .showcase-card-info {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .showcase-card-title {
+            font-size: 40px;
+            font-weight: bold;
+            margin: 0;
+        }
+        .showcase-card-desc {
+            font-size: 26px;
+            margin: 0;
+            flex-grow: 1;
+        }
+        .showcase-card-button {
+            align-self: flex-start;
+            font-family: 'VT323', monospace;
+            font-size: 28px;
+            padding: 8px 24px;
+            border: 2px solid var(--window-border-color);
+            background-color: var(--theme-blue);
+            box-shadow: 4px 4px 0px rgba(0,0,0,0.6);
+            border-radius: 4px;
+        }
+        .showcase-card-button:active {
+            box-shadow: none;
+            transform: translate(4px, 4px);
+        }
+
+        /* --- Mock Browser Styles (Refactored for Text Objects) --- */
+        .mock-browser-container {
+            background-color: #f0f0f0;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        .mock-browser-nav {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            background-color: #c0c0c0;
+            border-bottom: 2px solid #888;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+        .mock-browser-back-btn {
+            background: var(--window-bg-color);
+            border: 2px solid var(--window-border-color);
+            border-radius: 5px;
+            padding: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .mock-browser-back-btn:disabled {
+            opacity: 0.5;
+            cursor: default;
+        }
+        .mock-browser-back-btn svg {
+            width: 24px;
+            height: 24px;
+        }
+        /* Style for text elements that replace inputs */
+        .text-input-replacement {
+            font-family: 'VT323', monospace;
+            background-color: white;
+            white-space: pre;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            box-sizing: border-box;
+        }
+        .mock-browser-address-bar {
+            width: 100%;
+            font-size: 28px;
+            border: 2px inset #888;
+            padding: 4px 8px;
+            outline: none;
+        }
+        .mock-browser-body {
+            flex-grow: 1;
+            background-color: white;
+            overflow: hidden;
+            position: relative;
+        }
+        .mock-search-page {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            gap: 20px;
+        }
+        .mock-logo {
+            font-size: 96px;
+            font-weight: bold;
+        }
+        .mock-logo .g, .results-logo .g { color: #4285F4; }
+        .mock-logo .o1, .results-logo .o1 { color: #EA4335; }
+        .mock-logo .o2, .results-logo .o2 { color: #FBBC05; }
+        .mock-logo .l, .results-logo .l { color: #4285F4; }
+        .mock-logo .e, .results-logo .e { color: #34A853; }
+
+        .mock-search-input {
+            width: 80%;
+            max-width: 580px;
+            font-size: 28px;
+            padding: 10px;
+            border: 2px solid #a0a0a0;
+            min-height: 52px; /* Prevent collapse when empty */
+            position: relative;
+            outline: none;
+        }
+        /* Blinking cursor effect for the mock search input */
+        .mock-search-input.typing::after {
+            content: '';
+            display: inline-block;
+            width: 2px;
+            height: 28px;
+            background-color: black;
+            animation: blink 1s infinite step-end;
+            margin-left: 2px;
+            vertical-align: middle;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        .mock-search-button {
+            font-family: 'VT323', monospace;
+            font-size: 28px;
+            padding: 8px 24px;
+            border: 2px solid var(--window-border-color);
+            background-color: #f0f0f0;
+        }
+        .mock-results-page {
+            display: none; /* Initially hidden */
+            flex-direction: column;
+            height: 100%;
+        }
+        .results-header {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 15px 20px;
+            border-bottom: 1px solid #ebebeb;
+            flex-shrink: 0;
+        }
+        .results-logo {
+            font-size: 40px;
+            font-weight: bold;
+        }
+        .results-search-input {
+            width: 100%;
+            max-width: 600px;
+            font-size: 24px;
+            padding: 8px;
+            border: 2px solid #a0a0a0;
+            background-color: #f0f0f0;
+        }
+        .results-content {
+            padding: 20px;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+        .search-result-item {
+            margin-bottom: 24px;
+        }
+        .search-result-item a {
+            font-size: 32px;
+            color: #1a0dab;
+            text-decoration: underline;
+        }
+        .search-result-item .display-url {
+            font-size: 24px;
+            color: #006621;
+        }
+        .search-result-item .subtext {
+            font-size: 26px;
+            color: #545454;
+        }
+
+
+        /* --- Custom Scrollbar Styles --- */
+        * {
+          scrollbar-width: auto;
+          scrollbar-color: var(--taskbar-item-active-bg) var(--window-bg-color);
+        }
+        ::-webkit-scrollbar {
+          width: 20px;
+          height: 20px;
+        }
+        ::-webkit-scrollbar-track {
+          background: var(--window-bg-color);
+          border: 2px inset #a8a8a8;
+        }
+        ::-webkit-scrollbar-thumb {
+          background: var(--window-bg-color);
+          border: 2px outset #000;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+          background: #e8e8e8;
+        }
+        ::-webkit-scrollbar-thumb:active {
+            border-style: inset;
+        }
+        ::-webkit-scrollbar-corner {
+          background: var(--window-bg-color);
+        }
+
+        .pdf-iframe{
+          border-radius: 0 0 5px 5px;
+
+        }
+
+        /* --- Image Viewer Arrow Styles --- */
+        .image-nav-arrow {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background-color: rgba(0, 0, 0, 0.4);
+            color: white;
+            border: none;
+            font-size: 24px;
+            padding: 10px;
+            padding-bottom: 12px;
+            cursor: none;
+            z-index: 10;
+            border-radius: 4px;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            font-family: monospace; /* For better arrow rendering */
+        }
+        .image-nav-arrow:hover {
+            background-color: rgba(0, 0, 0, 0.7);
+        }
+        .image-nav-arrow.prev-arrow {
+            left: 16px;
+        }
+        .image-nav-arrow.next-arrow {
+            right: 16px;
+        }
+        .image-nav-arrow:disabled {
+            opacity: 0.2;
+            cursor: none;
+            pointer-events: none;
+        }
+
+
+    </style>
+</head>
+<body>
+    <iframe id="boot-iframe" src="boot/index.html"></iframe>
+    <div id="black-overlay"></div>
+
+    <div id="os-container">
+        <div id="vignette-overlay"></div>
+        <div id="desktop-icons-container" class="desktop-icons"></div>
+        <div id="windows-container"></div>
+
+        <div class="status-bar">
+            <div class="start-button" id="startButton">Start</div>
+            <div class="taskbar" id="taskbar"></div>
+            <div class="notification-area">
+                <div id="notification-icons-container"></div>
+                <span id="clock"></span>
+            </div>
+        </div>
+        <div class="start-menu" id="startMenu">
+            <ul id="start-menu-list-container" class="start-menu-list"></ul>
+        </div>
+    </div>
+    <div id="custom-cursor"></div>
+
+    <template id="checkerboard-template">
+        <div class="content checkerboard" style="height: 100%;"></div>
+    </template>
+    <template id="modal-template">
+        <div class="content" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 30px; text-align: center;">
+            <p>You need to fall in love!</p>
+            <button class="modal-button" style="padding: 12px 30px; font-size: 32px; border: 2px solid black;  "
+                    onclick="const windowEl = this.closest('.window'); windowEl.classList.add('hidden'); removeTaskbarItem(windowEl.id);">
+                Okay
+            </button>
+        </div>
+    </template>
+
+    <template id="music-player-template">
+        <div class="music-player">
+            <div class="song-info">
+              <div class="album-art">
+                  <img class="cd-overlay" src="openAssets/albumArts/baseCD.png" >
+                  <img class="album-art-image" src="openAssets/albumArts/1.jpg" alt="Album Art">
+
+
+              </div>
+                <p class="song-title">lofi hip hop radio</p>
+                <p class="artist-name">Lofi Girl</p>
+            </div>
+            <div class="player-controls">
+                <button class="player-button prev-button">
+                    <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"></path></svg>
+                </button>
+                <button class="player-button play-pause">
+                    <svg class="play-icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></svg>
+                    <svg class="pause-icon" viewBox="0 0 24 24" style="display:none;"><path  d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"></path></svg>
+                </button>
+                <button class="player-button next-button">
+                    <svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zm-4.5 6l-8.5 6V6z"></path></svg>
+                </button>
+            </div>
+        </div>
+        <script>
+            (function() {
+                const templateContent = document.currentScript.parentElement;
+                const playPauseBtn = templateContent.querySelector('.play-pause');
+                const playIcon = templateContent.querySelector('.play-icon');
+                const pauseIcon = templateContent.querySelector('.pause-icon');
+
+                playPauseBtn.addEventListener('click', () => {
+                    const isPlaying = playPauseBtn.classList.toggle('playing');
+                    playIcon.style.display = isPlaying ? 'none' : 'block';
+                    pauseIcon.style.display = isPlaying ? 'block' : 'none';
+                });
+            })();
+        </script>
+    </template>
+
+    <template id="mock-browser-template">
+        <div class="mock-browser-container">
+            <div class="mock-browser-nav">
+                <button class="mock-browser-back-btn" disabled>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+                </button>
+                <div class="mock-browser-address-bar text-input-replacement">https://www.google.com</div>
+            </div>
+            <div class="mock-browser-body">
+                <div class="mock-search-page">
+                    <div class="mock-logo">
+                        <span class="g">G</span><span class="o1">o</span><span class="o2">o</span><span class="g">g</span><span class="l">l</span><span class="e">e</span>
+                    </div>
+                    <div class="mock-search-input text-input-replacement" tabindex="0"></div>
+                    <button class="mock-search-button">Search</button>
+                </div>
+                <div class="mock-results-page">
+                    <div class="results-header">
+                        <div class="results-logo">
+                            <span class="g">G</span><span class="o1">o</span><span class="o2">o</span><span class="g">g</span><span class="l">l</span><span class="e">e</span>
+                        </div>
+                        <div class="results-search-input text-input-replacement"></div>
+                    </div>
+                    <div class="results-content">
+                         <!-- Search results will be injected here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <script>
+    const OS_CONFIG_URL = "";
+    const CUSTOM_LOADER_URL = ""; // <-- Add your custom loader GIF/image URL here
+    const SUBMENU_OFFSET_X = 12; // Horizontal offset in pixels
+    const SUBMENU_OFFSET_Y = -66; // Vertical offset in pixels
+
+    const ICON_URLS = {
+        computer: "icons/computer.png",
+        documents: "icons/documents.png",
+        folder: "icons/folder.png",
+        recycleBin: "icons/recycleBin.png",
+        internet: "icons/internet.png",
+        screenshot: "",
+        imageFile: "icons/imageFile.png",
+        pdfFile: "",
+        google: "",
+        linkedin: "icons/imageFile.png",
+        figma: "icons/figma.png",
+        music: "icons/music.png",
+        workfile: "icons/workfile.png",
+        default: ""
+    };
+
+    const DEFAULT_OS_CONFIG = {
+        "settings": { "wallpaperUrl": "" },
+        "desktop": [
+            { "id": "my-computer-icon", "name": "my_computer", "iconType": "computer", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#B0AEB8" d="M20,18H4V4H20M20,2H4A2,2 0 0,0 2,4V18A2,2 0 0,0 4,20H11V22H9V24H15V22H13V20H20A2,2 0 0,0 22,18V4A2,2 0 0,0 20,2Z" /><path fill="#98d2ff" d="M4.5,4.5h15v9h-15V4.5Z" /><circle cx="8" cy="8" r="1.5" fill="black"/><circle cx="16" cy="8" r="1.5" fill="black"/><path d="M 10 11 Q 12 13 14 11" stroke="black" fill="transparent" stroke-width="1.5"/></svg>`, "action": { "type": "openWindow", "payload": "window-computer" } },
+            { "id": "my-documents-icon", "name": "my_documents", "iconType": "documents", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" fill="black"/></svg>`, "action": { "type": "openWindow", "payload": "window-docs" } },
+            { "id": "recycle-bin-icon", "name": "recycle_bin", "iconType": "recycleBin", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" fill="black"/></svg>`, "action": { "type": "openWindow", "payload": "window-recycle-bin" } },
+            { "id": "internet-icon", "name": "internet", "iconType": "internet", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#4285F4" d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M16.8,15.9C16.4,15.4 15.2,14.2 14.1,13.1C13,12 12.5,11.5 12.5,10.5C12.5,9.5 13,9 14,8C15,7 15.5,6.5 15.5,5.5C15.5,4.5 15,4 14,3.5C14,3.5 14,3.5 14,3.5C14,3.5 14,3.5 14,3.5C13.6,3.3 12.8,3.1 12,3.1C10.8,3.1 9.7,3.4 8.8,4.1L10.2,5.5C10.6,5.2 11.3,5.1 12,5.1C12.4,5.1 12.8,5.2 13,5.4C13.2,5.6 13.5,5.8 13.5,6.2C13.5,6.6 13.2,7 12.2,8C11.2,9 10.5,9.5 10.5,10.5C10.5,11.5 11,12 12,13C13,14 13.5,14.5 14.5,15.5C15.5,16.5 16,17 16,18H8V20H16C16,19 16.5,18.5 16.8,18.1C17.1,17.7 17.5,17.2 17.5,16.5C17.5,16.2 17.2,15.9 16.8,15.9Z"/></svg>`, "action": { "type": "openWindow", "payload": "window-internet" } },
+            { "id": "screenshot-icon", "name": "Screenshot", "iconType": "screenshot", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" fill="black"/></svg>`, "action": { "type": "screenshot" } },
+            { "id": "music-player-icon", "name": "music", "iconType": "music", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#e57373" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`, "action": { "type": "openWindow", "payload": "window-music" } },
+            { "id": "figma-icon", "name": "figma", "iconType": "figma", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#F24E1E" d="M7.5,16.5A1.5,1.5 0 0,1 6,15V12A1.5,1.5 0 0,1 7.5,10.5H9V12H7.5V15H9V16.5H7.5M12,15A1.5,1.5 0 0,1 10.5,13.5V12A1.5,1.5 0 0,1 12,10.5A1.5,1.5 0 0,1 13.5,12V13.5A1.5,1.5 0 0,1 12,15M12,9A1.5,1.5 0 0,1 10.5,7.5A1.5,1.5 0 0,1 12,6A1.5,1.5 0 0,1 13.5,7.5A1.5,1.5 0 0,1 12,9M16.5,13.5A1.5,1.5 0 0,1 15,12A1.5,1.5 0 0,1 16.5,10.5H18V12H16.5V13.5M16.5,9A1.5,1.5 0 0,1 15,7.5V6H16.5A1.5,1.5 0 0,1 18,7.5V9H16.5Z" /></svg>`, "action": { "type": "openWindow", "payload": "window-showcase" } }
+        ],
+        "windows": {
+            "window-computer": {
+                "title": "my_computer", "width": 1050, "height": 700, "top": "5%", "left": "15%", "theme": "window-theme-blue",
+                "content": {
+                    "type": "storage",
+                    "payload": [
+                        { "id": "work-folder", "name": "Work", "iconType": "folder", "description": "Contains all work-related documents and projects.", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#F9E79F" d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.1.89 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.11-.9-2-2h-8l-2-2z"/></svg>`, "action": { "type": "openWindow", "payload": "window-work-docs" } },
+                        { "id": "passion-folder", "name": "Passion", "iconType": "folder", "description": "Contains personal hobbies and passion projects.", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#F9E79F" d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.1.89 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.11-.9-2-2h-8l-2-2z"/></svg>`, "action": { "type": "openWindow", "payload": "window-passion-pics" } },
+                        { "id": "holidays-folder", "name": "Holidays","iconType": "folder",  "description": "", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#F9E79F" d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.1.89 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.11-.9-2-2h-8l-2-2z"/></svg>`, "action": { "type": "openWindow", "payload": "window-holidays-vids" } },
+                        { "id": "resume-pdf", "name": "Resume.pdf", "iconType": "workfile", "description": "My professional resume.", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#E57373" d="M19,2H5A2,2 0 0,0 3,4V20A2,2 0 0,0 5,22H19A2,2 0 0,0 21,20V4A2,2 0 0,0 19,2M9.5,11.5A1.5,1.5 0 0,1 8,10A1.5,1.5 0 0,1 9.5,8.5H11.5V10H9.5V11.5H11.5V13H9.5V14.5H11.5A1.5,1.5 0 0,0 13,13V10A1.5,1.5 0 0,0 11.5,8.5H9.5M16,14.5H14.5V8.5H16V14.5Z" /></svg>`, "action": { "type": "openWindow", "payload": "window-resume-pdf" } }
+                    ]
+                }
+            },
+            "window-recycle-bin": { "title": "Recycle Bin", "width": 500, "height": 400, "top": "20%", "left": "25%", "theme": "", "content": { "type": "storage", "payload": [] } },
+            "window-work-docs": { "title": "my_computer\\Work", "content": { "type": "storage", "payload": [] } },
+            "window-passion-pics": { "title": "my_computer\\Passion", "content": { "type": "storage", "payload": [] } },
+            "window-holidays-vids": {
+                "title": "my_computer\\Holidays",
+                "content": {
+                    "type": "storage",
+                    "payload": [
+                        { "id": "goa-pic", "name": "Goa.png", "iconType": "imageFile", "description": "A beautiful picture from the beaches of Goa.", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#B2EBF2" d="M21.4,6.6l-2.8-2.8C18.3,3.5,17.9,3.3,17.5,3.3H6.5C5.7,3.3,5,4,5,4.8v14.4c0,0.8,0.7,1.5,1.5,1.5h11c0.8,0,1.5-0.7,1.5-1.5V7.5C19,7.1,18.8,6.7,18.6,6.4L21.4,6.6z M13,18H7v-2h6V18z M17,14H7v-2h10V14z M17,10H7V8h10V10z"/></svg>`, "action": { "type": "openImage", "payload": "openAssets/car.jpg", "title": "Goa.png" } },
+                        { "id": "conoor-pic", "name": "Conoor.jpg", "iconType": "imageFile", "description": "A scenic view from the hills of Conoor.", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#B2EBF2" d="M21.4,6.6l-2.8-2.8C18.3,3.5,17.9,3.3,17.5,3.3H6.5C5.7,3.3,5,4,5,4.8v14.4c0,0.8,0.7,1.5,1.5,1.5h11c0.8,0,1.5-0.7,1.5-1.5V7.5C19,7.1,18.8,6.7,18.6,6.4L21.4,6.6z M13,18H7v-2h6V18z M17,14H7v-2h10V14z M17,10H7V8h10V10z"/></svg>`, "action": { "type": "openImage", "payload": "openAssets/val.png", "title": "Conoor.jpg" } }
+                    ]
+                }
+            },
+            "window-resume-pdf": {
+                "title": "Resume.pdf", "width": 800, "height": 600, "top": "15%", "left": "20%",
+                "startMaximized": true,
+                "content": {
+                    "type": "pdf",
+                    "payload": "openAssets/pdfs/test.pdf",
+                    "placeholderImage": "https://placehold.co/800x1100/eeeeee/cccccc?text=Resume.pdf"
+                }
+            },
+            "window-internet": {
+                "title": "Internet", "width": 1024, "height": 768, "top": "10%", "left": "10%", "theme": "window-theme-blue",
+                "content": {
+                    "type": "mock-browser",
+                    "searchQuery": "More details about ishant",
+                    "searchResults": [
+                        { "title": "Linkedin | Ishant Periwal", "url": "https://www.linkedin.com/in/ishant-periwal/", "displayUrl": "linkedin.com/in/ishant-periwal", "subtext": "Accomplished Software Engineer with a passion for building innovative solutions and leading high-performing teams." },
+                        { "title": "Instagram @ishantperiwal", "url": "https://www.instagram.com/ishantperiwal/", "displayUrl": "instagram.com/ishantperiwal", "subtext": "Sharing my journey through code, travel, and photography. Follow for a glimpse into my life." },
+                        { "title": "GitHub | ishant-periwal", "url": "https://github.com/ishant-periwal", "displayUrl": "github.com/ishant-periwal", "subtext": "Check out my open-source projects, contributions, and coding experiments. Always learning, always building." },
+                        { "title": "Personal Blog - The Digital Canvas", "url": "#", "displayUrl": "ishant.dev/blog", "subtext": "Musings on technology, software architecture, and the future of the web. Deep dives and tutorials." },
+                        { "title": "Twitter / X @ishant_codes", "url": "https://twitter.com/ishant_codes", "displayUrl": "twitter.com/ishant_codes", "subtext": "Real-time thoughts on tech trends, development tips, and engaging with the tech community." }
+                    ]
+                }
+            },
+            "window-music": {
+                "title": "Music Player", "width": 340, "height": 420, "top": "25%", "left": "40%", "theme": "window-theme-green",
+                "maximizable": false,
+                "showInTaskbar": false,
+                "content": { "type": "template", "payload": "music-player-template" },
+                "behaviorOnClose": "minimize",
+                "notificationId": "music-notification-icon"
+            },
+            "window-modal": { "title": "Attention!", "width": 600, "height": 350, "top": "50%", "left": "25%", "theme": "window-theme-pink", "content": { "type": "template", "payload": "modal-template" } },
+            "window-docs": { "title": "my_documents", "width": 780, "height": 550, "top": "10%", "left": "30%", "theme": "", "content": { "type": "storage", "payload": [] } },
+            "window-after-effects": { "title": "After Effects", "width": 800, "height": 600, "top": "15%", "left": "25%", "content": { "type": "template", "payload": "checkerboard-template" } },
+            "window-affinity": { "title": "Affinity Designer", "width": 800, "height": 600, "top": "18%", "left": "28%", "content": { "type": "template", "payload": "checkerboard-template" } },
+            "window-plasticity": { "title": "Plasticity", "width": 800, "height": 600, "top": "21%", "left": "31%", "content": { "type": "template", "payload": "checkerboard-template" } },
+            "window-blender": { "title": "Blender", "width": 800, "height": 600, "top": "24%", "left": "34%", "content": { "type": "template", "payload": "checkerboard-template" } },
+            "window-showcase": {
+                "title": "figma", "width": 850, "height": 579, "top": "10%", "left": "20%",
+                "theme": "window-theme-dark",
+                "content": {
+                    "type": "showcase",
+                    "payload": [
+                        { "imageUrl": "https://placehold.co/140x140/ff98e7/000?text=ProjectA", "title": "Project Alpha", "description": "A revolutionary new design system for modern web applications.", "buttonText": "View Details", "buttonUrl": "https://example.com/project-a" },
+                        { "imageUrl": "https://placehold.co/140x140/a3ff98/000?text=ProjectB", "title": "Project Beta", "description": "An innovative mobile app for tracking personal fitness goals.", "buttonText": "See More", "buttonUrl": "https://example.com/project-b" }
+                    ]
+                }
+            },
+            "window-image-viewer": {
+                "title": "Image Viewer", "width": 640, "height": 480, "top": "20%", "left": "25%",
+                "maximizable": true,
+                "showInTaskbar": true,
+                "content": { "type": "image", "payload": "" }
+            }
+        },
+        "startMenu": [
+            {
+                "type": "submenu",
+                "name": "Programs",
+                "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M4 2h16v2H4zm0 4h16v12H4zm2 2v8h12v-8z"/></svg>`,
+                "items": [
+                    { "name": "After Effects", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#9C27B0" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-1 15V7h2v10zm-4-2V9h2v6zm8-4V9h2v2z"/></svg>`, "action": { "type": "openWindow", "payload": "window-after-effects" } },
+                    { "name": "Affinity Designer", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#1976D2" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 18c-4.4 0-8-3.6-8-8s3.6-8 8-8 8 3.6 8 8-3.6 8-8 8zm-1-12h2v8h-2z"/></svg>`, "action": { "type": "openWindow", "payload": "window-affinity" } },
+                    { "name": "Plasticity", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#FF5722" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 15l-5-5h10z"/></svg>`, "action": { "type": "openWindow", "payload": "window-plasticity" } },
+                    { "name": "Blender", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#E65100" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 14.5V11h4v5.5zm0-7.5V7h4v2z"/></svg>`, "action": { "type": "openWindow", "payload": "window-blender" } }
+                ]
+            },
+            { "type": "item", "name": "Messages", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>`, "action": { "type": "openWindow", "payload": "window-modal" } },
+            { "type": "item", "name": "Documents", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zM16 18H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>`, "action": { "type": "openWindow", "payload": "window-docs" } },
+            { "type": "separator" },
+            { "type": "item", "name": "Shut Down...", "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42A6.92 6.92 0 0 1 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-1.93.78-3.68 2.06-4.94L5.64 5.64A9 9 0 1 0 21 12c0-2.48-1-4.73-2.67-6.33z"/></svg>`, "action": { "type": "shutdown" } }
+        ],
+        "notifications": [
+            { "id": "love-icon", "persistent": true, "iconSVG": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#ff98e7" stroke="#000" stroke-width="1.5" d="M12,21.35L10.55,20.03C5.4,15.36 2,12.27 2,8.5C2,5.41 4.42,3 7.5,3C9.24,3 10.91,3.81 12,5.08C13.09,3.81 14.76,3 16.5,3C19.58,3 22,5.41 22,8.5C22,12.27 18.6,15.36 13.45,20.03L12,21.35Z"/></svg>`, "action": { "type": "openWindow", "payload": "window-modal" } },
+            { "id": "music-notification-icon", "persistent": false, "iconType": "music", "action": { "type": "openWindow", "payload": "window-music" } }
+        ]
+    };
+
+    let highestZIndex = 4;
+    let hideCursorTimer;
+    let lastMouseX = 0;
+    let lastMouseY = 0;
+
+    let screenShotFlag = true;
+    let isBooting = true;
+    let infocusmode  = false;
+
+    let isInteracting = false; // Flag to indicate if the user is currently interacting
+    let interactionTimer = null; // Timer to reset the isInteracting flag
+    const INTERACTION_TIMEOUT = 18500; // 10 seconds (10 * 1000 ms)
+
+
+    const SHOW_BOOT_SCREEN = false;
+    const BOOT_FADE_OUT_TIME_MS = 550;
+    const BLACK_SCREEN_FADE_OUT_TIME_MS = 350;
+
+    const GRID_THICKNESS = 3;
+    const GRID_COLOR = 'rgba(51, 51, 51, 0.5)';
+    const SCANLINE_INTENSITY = 0;
+
+    const desktopIconsContainer = document.getElementById('desktop-icons-container');
+    const windowsContainer = document.getElementById('windows-container');
+    const taskbar = document.getElementById('taskbar');
+    const startButton = document.getElementById('startButton');
+    const startMenu = document.getElementById('startMenu');
+    const startMenuListContainer = document.getElementById('start-menu-list-container');
+    const notificationIconsContainer = document.getElementById('notification-icons-container');
+    const clockElement = document.getElementById('clock');
+    const bootIframe = document.getElementById('boot-iframe');
+    let submenuHideTimer = null;
+
+    function getIconHTML(iconData) {
+        if (iconData.iconType && ICON_URLS[iconData.iconType]) {
+            return `<img src="${ICON_URLS[iconData.iconType]}" alt="${iconData.name}">`;
+        }
+        return iconData.iconSVG;
+    }
+
+    function buildUIFromConfig(config) {
+        if (config.settings && config.settings.wallpaperUrl) {
+            document.body.style.backgroundImage = `url('${config.settings.wallpaperUrl}')`;
+            document.body.style.backgroundSize = 'cover';
+            document.body.style.backgroundPosition = 'center';
+        }
+
+        desktopIconsContainer.innerHTML = '';
+        config.desktop.forEach(iconData => {
+            const iconEl = document.createElement('div');
+            iconEl.className = 'desktop-icon';
+            iconEl.id = iconData.id;
+            iconEl.innerHTML = `<div class="icon-bg">${getIconHTML(iconData)}</div><span>${iconData.name}</span>`;
+            desktopIconsContainer.appendChild(iconEl);
+            addIconClickHandler(iconEl, iconData.action);
+        });
+
+        windowsContainer.innerHTML = '';
+        for (const windowId in config.windows) {
+            const winData = config.windows[windowId];
+            const windowEl = document.createElement('div');
+            windowEl.className = 'window hidden';
+            if(winData.theme) windowEl.classList.add(winData.theme);
+            windowEl.id = windowId;
+            Object.assign(windowEl.style, { width: winData.width + 'px', height: winData.height + 'px', top: winData.top, left: winData.left });
+
+            const iconDataForTitle = config.desktop.find(icon => icon.action.payload === windowId) || Object.values(config.windows).flatMap(w => w.content.payload || []).find(p => p.action && p.action.payload === windowId);
+            const titleBarIconHTML = iconDataForTitle ? `<div class="title-bar-icon">${getIconHTML(iconDataForTitle)}</div>` : '';
+            const displayTitle = winData.title.split('\\').pop();
+            const maximizeButtonHTML = winData.maximizable !== false ? `<div class="title-bar-button maximize-btn maximize-circle-btn"></div>` : '';
+            windowEl.innerHTML = `<div class="title-bar">${titleBarIconHTML}<span class="title-text">${displayTitle}</span><div class="title-bar-buttons">${maximizeButtonHTML}<div class="title-bar-button close-btn close-circle-btn"></div></div></div>`;
+            windowEl.appendChild(generateWindowContent(winData.content, windowId));
+            windowsContainer.appendChild(windowEl);
+            makeWindowInteractive(windowEl);
+
+            if (winData.content.type === 'storage') {
+                updateSidebar(windowEl, null);
+            }
+        }
+
+        startMenuListContainer.innerHTML = '';
+        config.startMenu.forEach(itemData => {
+            const itemEl = document.createElement('li');
+            if (itemData.type === 'separator') {
+                itemEl.className = 'start-menu-separator';
+            } else {
+                itemEl.className = 'start-menu-item';
+                itemEl.innerHTML = `<div class="start-menu-item-icon">${itemData.iconSVG}</div><span>${itemData.name}</span>`;
+
+                if (itemData.type === 'submenu' && itemData.items) {
+                    itemEl.innerHTML += `<span class="submenu-arrow"></span>`;
+                    const submenuEl = document.createElement('ul');
+                    submenuEl.className = 'submenu';
+                    itemData.items.forEach(subItemData => {
+                        const subItemEl = document.createElement('li');
+                        subItemEl.className = 'start-menu-item';
+                        subItemEl.innerHTML = `<div class="start-menu-item-icon">${subItemData.iconSVG}</div><span>${subItemData.name}</span>`;
+                        subItemEl.addEventListener('click', () => handleAction(subItemData.action));
+                        submenuEl.appendChild(subItemEl);
+                    });
+                    itemEl.appendChild(submenuEl);
+
+                    const showSubmenu = () => {
+                        clearTimeout(submenuHideTimer);
+                        submenuEl.classList.add('visible');
+                    };
+
+                    const hideSubmenu = () => {
+                        submenuHideTimer = setTimeout(() => {
+                            submenuEl.classList.remove('visible');
+                        }, 300); // 300ms delay before hiding
+                    };
+
+                    itemEl.addEventListener('mouseenter', showSubmenu);
+                    itemEl.addEventListener('mouseleave', hideSubmenu);
+
+                } else {
+                    itemEl.addEventListener('click', () => handleAction(itemData.action));
+                }
+            }
+            startMenuListContainer.appendChild(itemEl);
+        });
+
+        notificationIconsContainer.innerHTML = '';
+        if (config.notifications) {
+            config.notifications.forEach(iconData => createNotificationIcon(iconData));
+        }
+    }
+
+    function updateSidebar(windowEl, iconData) {
+        const sidebar = windowEl.querySelector('.storage-sidebar');
+        if (!sidebar) return;
+
+        if (iconData) {
+            const description = iconData.description || "Double click to open.";
+            sidebar.innerHTML = `<div class="sidebar-icon-large">${getIconHTML(iconData)}</div><div class="sidebar-separator"></div><div class="sidebar-details">${description}</div>`;
+        } else {
+            const history = JSON.parse(windowEl.dataset.history || `["${windowEl.id}"]`);
+            const currentId = history[history.length - 1];
+            const windowConfig = DEFAULT_OS_CONFIG.windows[currentId];
+
+            if (!windowConfig || windowConfig.content.type !== 'storage') {
+                sidebar.innerHTML = '';
+                return;
+            }
+
+            let mainIconData = DEFAULT_OS_CONFIG.desktop.find(icon => icon.action.payload === currentId);
+            if (!mainIconData) {
+                for (const winKey in DEFAULT_OS_CONFIG.windows) {
+                    const config = DEFAULT_OS_CONFIG.windows[winKey];
+                    if (config.content && config.content.type === 'storage' && config.content.payload) {
+                        const found = config.content.payload.find(item => item.action && item.action.payload === currentId);
+                        if (found) {
+                            mainIconData = found;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            const itemCount = windowConfig.content.payload.length;
+            const itemText = itemCount === 1 ? '1 Item, Double click to open.' : `${itemCount} Items, Double click to open.`;
+            let iconHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#F9E79F" d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.1.89 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.11-.9-2-2h-8l-2-2z"/></svg>`;
+            if (mainIconData) iconHTML = getIconHTML(mainIconData);
+
+            sidebar.innerHTML = `<div class="sidebar-icon-large">${iconHTML}</div><div class="sidebar-separator"></div><div class="sidebar-details">${itemText}</div>`;
+        }
+    }
+
+    function generateWindowContent(contentData, parentWindowId = null) {
+        const contentEl = document.createElement('div');
+        contentEl.className = 'content';
+        switch (contentData.type) {
+            case 'image':
+                contentEl.innerHTML = `
+                    <button class="image-nav-arrow prev-arrow" disabled>&lt;</button>
+                    <img src="${contentData.payload}" alt="Window content" style="display: block; height: 100%; object-fit: contain; transition: opacity 0.2s; margin: auto;">
+                    <button class="image-nav-arrow next-arrow" disabled>&gt;</button>
+                `;
+                contentEl.style.padding = '10px';
+                contentEl.style.boxSizing = 'border-box';
+                contentEl.style.position = 'relative'; // Needed for absolute positioning of arrows
+                break;
+            case 'pdf':
+                contentEl.style.padding = '0';
+                contentEl.style.overflow = 'hidden';
+                contentEl.style.position = 'relative'; // Make the content element a positioning context
+
+                const placeholderUrl = contentData.placeholderImage || 'https://placehold.co/800x1100/eeeeee/cccccc?text=Loading+Document...';
+                const pdfUrl = `${contentData.payload}#toolbar=0&navpanes=0&view=FitH`;
+
+                contentEl.innerHTML = `
+                    <img src="${placeholderUrl}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1;" alt="PDF Placeholder">
+                    <iframe src="${pdfUrl}" class="pdf-iframe" style="position: relative; z-index: 2; width: 100%; height: 100%; border: none; background-color: transparent;"></iframe>
+                `;
+                break;
+            case 'iframe':
+                contentEl.style.padding = '0';
+                contentEl.style.overflow = 'hidden';
+                contentEl.innerHTML = `<iframe src="${contentData.payload}"></iframe>`;
+                break;
+            case 'mock-browser':
+                contentEl.style.padding = '0';
+                const mockBrowserTemplate = document.getElementById('mock-browser-template');
+                if (mockBrowserTemplate) {
+                    const clone = document.importNode(mockBrowserTemplate.content, true);
+                    const backButton = clone.querySelector('.mock-browser-back-btn');
+                    const searchPage = clone.querySelector('.mock-search-page');
+                    const resultsPage = clone.querySelector('.mock-results-page');
+                    const searchInput = clone.querySelector('.mock-search-input');
+                    const searchButton = clone.querySelector('.mock-search-button');
+                    const resultsHeaderInput = clone.querySelector('.results-search-input');
+                    const resultsContent = clone.querySelector('.results-content');
+                    const fullQuery = contentData.searchQuery;
+
+                    let charIndex = 0;
+                    searchInput.textContent = ''; // Start empty
+
+                    const startTypingAnimation = () => searchInput.classList.add('typing');
+                    const stopTypingAnimation = () => searchInput.classList.remove('typing');
+
+                    const showResults = () => {
+                        searchPage.style.display = 'none';
+                        resultsPage.style.display = 'flex';
+                        resultsHeaderInput.textContent = fullQuery;
+                        resultsContent.innerHTML = '';
+                        backButton.disabled = false;
+
+                        const resultsLabel = document.createElement('p');
+                        resultsLabel.textContent = 'Search results';
+                        resultsLabel.style.fontSize = '22px';
+                        resultsLabel.style.color = '#70757a';
+                        resultsLabel.style.marginBottom = '20px';
+                        resultsContent.appendChild(resultsLabel);
+
+                        contentData.searchResults.forEach(result => {
+                            const resultEl = document.createElement('div');
+                            resultEl.className = 'search-result-item';
+                            resultEl.innerHTML = `
+                                <a href="${result.url}" target="_blank">${result.title}</a>
+                                <div class="display-url">${result.displayUrl}</div>
+                                <div class="subtext">${result.subtext}</div>
+                            `;
+                            resultsContent.appendChild(resultEl);
+                        });
+                    };
+
+                    const performSearch = () => {
+                        stopTypingAnimation();
+                        if (searchInput.textContent !== fullQuery) {
+                            searchInput.textContent = fullQuery;
+                            setTimeout(showResults, 300);
+                        } else {
+                            showResults();
+                        }
+                    };
+
+                    searchInput.addEventListener('keydown', (e) => {
+                        startTypingAnimation();
+
+                        if (e.key === 'Enter' && searchInput.textContent.length > 0) {
+                            performSearch();
+                            return;
+                        }
+
+                        if (e.key === 'Backspace') {
+                            if (charIndex > 0) {
+                                charIndex--;
+                                searchInput.textContent = fullQuery.substring(0, charIndex);
+                            }
+                            return;
+                        }
+
+                        if (e.key.length === 1 && charIndex < fullQuery.length) {
+                            searchInput.textContent += fullQuery.charAt(charIndex);
+                            charIndex++;
+                        }
+                    });
+
+                    searchButton.addEventListener('click', performSearch);
+
+                    backButton.addEventListener('click', () => {
+                        resultsPage.style.display = 'none';
+                        searchPage.style.display = 'flex';
+                        backButton.disabled = true;
+                        charIndex = 0;
+                        searchInput.textContent = '';
+                        searchInput.focus();
+                        startTypingAnimation();
+                    });
+
+                    contentEl.appendChild(clone);
+                } else {
+                    contentEl.textContent = 'Error: Mock browser template not found.';
+                }
+                break;
+            case 'template':
+                const template = document.getElementById(contentData.payload);
+                if (template) {
+                    contentEl.style.padding = '0';
+                    const clone = document.importNode(template.content, true);
+                    const script = clone.querySelector('script');
+                    if (script) {
+                        const newScript = document.createElement('script');
+                        newScript.textContent = script.textContent;
+                        script.remove();
+                        clone.appendChild(newScript);
+                    }
+                    contentEl.appendChild(clone);
+                } else {
+                    contentEl.textContent = `Error: Template "${contentData.payload}" not found.`;
+                }
+                break;
+            case 'storage':
+                contentEl.style.padding = '0';
+                contentEl.style.display = 'flex';
+                contentEl.style.flexDirection = 'column';
+                contentEl.style.height = '100%';
+                const windowConfig = DEFAULT_OS_CONFIG.windows[parentWindowId];
+                const initialPath = windowConfig ? windowConfig.title : '';
+                contentEl.innerHTML = `<div class="storage-nav"><button class="back-button" disabled style="opacity: 0.5;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button><div class="address-bar-container"><span class="address-bar-label">Address</span><span class="address-bar">${initialPath}</span></div></div>`;
+                const bodyWrapper = document.createElement('div');
+                bodyWrapper.className = 'storage-body-wrapper';
+                bodyWrapper.innerHTML = `<div class="storage-sidebar"></div><div class="storage-main-pane"><div class="storage-container"></div></div>`;
+                contentData.payload.forEach(iconData => {
+                    const iconEl = document.createElement('div');
+                    iconEl.className = 'storage-icon';
+                    iconEl.innerHTML = `<div class="icon-bg">${getIconHTML(iconData)}</div><span>${iconData.name}</span>`;
+                    let lastClickTime = 0;
+                    iconEl.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const parentWindow = iconEl.closest('.window');
+                        parentWindow.querySelectorAll('.storage-icon.selected').forEach(i => i.classList.remove('selected'));
+                        iconEl.classList.add('selected');
+                        updateSidebar(parentWindow, iconData);
+                        const now = new Date().getTime();
+                        if (now - lastClickTime < 400) handleStorageItemDoubleClick(iconData, parentWindow);
+                        lastClickTime = now;
+                        screenShotFlag = true;
+                    });
+                    bodyWrapper.querySelector('.storage-container').appendChild(iconEl);
+                });
+                contentEl.appendChild(bodyWrapper);
+                break;
+            case 'showcase':
+                contentEl.style.padding = '0';
+                const showcaseContainer = document.createElement('div');
+                showcaseContainer.className = 'showcase-container';
+                contentData.payload.forEach(cardData => {
+                    const cardEl = document.createElement('div');
+                    cardEl.className = 'showcase-card';
+                    cardEl.innerHTML = `
+                        <img src="${cardData.imageUrl}" class="showcase-card-image" alt="${cardData.title}">
+                        <div class="showcase-card-info">
+                            <h3 class="showcase-card-title">${cardData.title}</h3>
+                            <p class="showcase-card-desc">${cardData.description}</p>
+                            <button class="showcase-card-button">${cardData.buttonText}</button>
+                        </div>
+                    `;
+                    const button = cardEl.querySelector('.showcase-card-button');
+                    if (cardData.buttonUrl) {
+                        button.addEventListener('click', () => {
+                            window.open(cardData.buttonUrl, '_blank');
+                        });
+                    }
+                    showcaseContainer.appendChild(cardEl);
+                });
+                contentEl.appendChild(showcaseContainer);
+                break;
+            default:
+                contentEl.textContent = 'Unsupported content type.';
+        }
+        return contentEl;
+    }
+
+    function renderContentInWindow(windowEl, newWindowId, isBack = false) {
+        const newWindowConfig = DEFAULT_OS_CONFIG.windows[newWindowId];
+        if (!newWindowConfig) return;
+
+        let history = JSON.parse(windowEl.dataset.history);
+
+        if (!isBack) {
+            if (history[history.length - 1] !== newWindowId) history.push(newWindowId);
+            windowEl.dataset.history = JSON.stringify(history);
+              screenShotFlag = true;
+        }
+
+        updateSidebar(windowEl, null);
+
+        windowEl.querySelector('.title-text').textContent = newWindowConfig.title.split('\\').pop();
+        if (windowEl.querySelector('.address-bar')) windowEl.querySelector('.address-bar').textContent = newWindowConfig.title;
+
+        const storageContainer = windowEl.querySelector('.storage-container');
+        storageContainer.innerHTML = '';
+        newWindowConfig.content.payload.forEach(iconData => {
+            const iconEl = document.createElement('div');
+            iconEl.className = 'storage-icon';
+            iconEl.innerHTML = `<div class="icon-bg">${getIconHTML(iconData)}</div><span>${iconData.name}</span>`;
+            let lastClickTime = 0;
+            iconEl.addEventListener('click', (e) => {
+                e.stopPropagation();
+                windowEl.querySelectorAll('.storage-icon.selected').forEach(i => i.classList.remove('selected'));
+                iconEl.classList.add('selected');
+                updateSidebar(windowEl, iconData);
+                const now = new Date().getTime();
+                if (now - lastClickTime < 400) handleStorageItemDoubleClick(iconData, windowEl);
+                lastClickTime = now;
+            });
+            storageContainer.appendChild(iconEl);
+        });
+
+        const backButton = windowEl.querySelector('.back-button');
+        const canGoBack = history.length > 1;
+        backButton.disabled = !canGoBack;
+        backButton.style.opacity = canGoBack ? 1 : 0.5;
+        backButton.style.cursor = canGoBack ? 'pointer' : 'default';
+        backButton.onclick = () => {
+            if (canGoBack) {
+                let currentHistory = JSON.parse(windowEl.dataset.history);
+                currentHistory.pop();
+                windowEl.dataset.history = JSON.stringify(currentHistory);
+                renderContentInWindow(windowEl, currentHistory[currentHistory.length - 1], true);
+            }
+        };
+    }
+
+    function handleStorageItemDoubleClick(iconData, windowEl) {
+        if (!iconData.action) return;
+
+        if (iconData.action.type === 'openImage') {
+            const parentWindowId = JSON.parse(windowEl.dataset.history).pop();
+            const parentConfig = DEFAULT_OS_CONFIG.windows[parentWindowId];
+            const imageContext = parentConfig.content.payload.filter(item => item.action.type === 'openImage');
+            openImage(iconData.action.payload, iconData.name, imageContext);
+        } else if (iconData.action.type === 'openWindow') {
+            const targetConfig = DEFAULT_OS_CONFIG.windows[iconData.action.payload];
+            if (targetConfig && targetConfig.content.type === 'storage') {
+                renderContentInWindow(windowEl, iconData.action.payload);
+            } else {
+                handleAction(iconData.action);
+            }
+        } else {
+            handleAction(iconData.action);
+        }
+    }
+
+    function handleAction(action) {
+        if (!action) return;
+        switch (action.type) {
+            case 'openWindow':
+                openWindow(action.payload);
+                break;
+            case 'openImage':
+                openImage(action.payload, action.title);
+                break;
+            case 'screenshot':
+                captureAndDownloadScreenshot();
+                break;
+            case 'shutdown':
+                console.log("Shutdown initiated...");
+                break;
+        }
+        startMenu.classList.remove('show');
+    }
+
+    function addIconClickHandler(iconEl, action) {
+        let lastClickTime = 0;
+        iconEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const now = new Date().getTime();
+            document.querySelectorAll('.desktop-icon.selected').forEach(i => i.classList.remove('selected'));
+            iconEl.classList.add('selected');
+            if (now - lastClickTime < 400) {
+                handleAction(action);
+            }
+            lastClickTime = now;
+        });
+    }
+
+    function makeWindowInteractive(windowEl) {
+        const titleBar = windowEl.querySelector('.title-bar');
+        const closeBtn = windowEl.querySelector('.close-btn');
+        const maximizeBtn = windowEl.querySelector('.maximize-btn');
+        const windowConfig = DEFAULT_OS_CONFIG.windows[windowEl.id];
+
+        windowEl.addEventListener('mousedown', () => bringToFront(windowEl), true);
+
+        if (titleBar) {
+            titleBar.addEventListener('mousedown', (e) => {
+                if (e.target.closest('.title-bar-button') || windowEl.dataset.isMaximized === 'true') return;
+                e.preventDefault();
+                windowEl.classList.add('dragging');
+                const startX = e.clientX, startY = e.clientY;
+                const initialLeft = windowEl.offsetLeft, initialTop = windowEl.offsetTop;
+                const onMouseMove = (moveEvent) => {
+                    const dx = moveEvent.clientX - startX, dy = moveEvent.clientY - startY;
+                    const statusBar = document.querySelector('.status-bar');
+                    const statusBarHeight = statusBar ? statusBar.offsetHeight : 0;
+                    let newLeft = Math.max(-(windowEl.offsetWidth * 0.6), Math.min(initialLeft + dx, window.innerWidth - (windowEl.offsetWidth * 0.4)));
+                    let newTop = Math.max(0, Math.min(initialTop + dy, window.innerHeight - statusBarHeight - titleBar.offsetHeight));
+                    windowEl.style.left = `${newLeft}px`;
+                    windowEl.style.top = `${newTop}px`;
+                      screenShotFlag = true;
+                };
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', () => {
+                    windowEl.classList.remove('dragging');
+                    document.removeEventListener('mousemove', onMouseMove);
+                }, { once: true });
+            });
+        }
+        if (closeBtn) {
+            closeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (windowConfig && windowConfig.behaviorOnClose === 'minimize') {
+                    minimizeWindow(windowEl);
+                } else {
+                    windowEl.classList.add('hidden');
+                    removeTaskbarItem(windowEl.id);
+                }
+                screenShotFlag = true;
+            });
+        }
+        if (maximizeBtn) {
+            maximizeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleMaximize(windowEl);
+            });
+        }
+    }
+
+    function toggleMaximize(windowEl) {
+        if (windowEl.dataset.isMaximized === 'true') {
+            const original = JSON.parse(windowEl.dataset.originalRect);
+            Object.assign(windowEl.style, original);
+            windowEl.dataset.isMaximized = 'false';
+        } else {
+            const statusBar = document.querySelector('.status-bar');
+            const topOfStatusBar = statusBar ? statusBar.getBoundingClientRect().top : window.innerHeight;
+            windowEl.dataset.originalRect = JSON.stringify({ top: windowEl.style.top, left: windowEl.style.left, width: windowEl.style.width, height: windowEl.style.height });
+
+            const padding = 16;
+            const newTop = `${padding}px`;
+            const newLeft = `${padding}px`;
+            const newWidth = `calc(100vw - ${padding * 2}px)`;
+            const newHeight = `calc(${topOfStatusBar}px - ${padding * 2}px)`;
+
+            Object.assign(windowEl.style, {
+                top: newTop,
+                left: newLeft,
+                width: newWidth,
+                height: newHeight
+            });
+            windowEl.dataset.isMaximized = 'true';
+        }
+          screenShotFlag = true;
+    }
+
+    function minimizeWindow(windowEl) {
+      const windowConfig = DEFAULT_OS_CONFIG.windows[windowEl.id];
+      if (!windowConfig || !windowConfig.notificationId) return;
+
+      const notifIcon = document.getElementById(windowConfig.notificationId);
+      if (!notifIcon) return;
+
+      const notifArea = document.querySelector('.notification-area');
+      if (!notifArea) return;
+
+      const targetRect = notifArea.getBoundingClientRect();
+      const windowRect = windowEl.getBoundingClientRect();
+
+      const targetX = targetRect.left + (targetRect.width / 2) - windowRect.left;
+      const targetY = targetRect.top + (targetRect.height / 2) - windowRect.top;
+
+      windowEl.style.setProperty('--target-x', `${targetX}px`);
+      windowEl.style.setProperty('--target-y', `${targetY}px`);
+
+      windowEl.classList.add('window-minimizing');
+      removeTaskbarItem(windowEl.id);
+
+      windowEl.addEventListener('animationend', () => {
+          windowEl.classList.add('hidden');
+          windowEl.classList.remove('window-minimizing');
+          notifIcon.classList.remove('hidden');
+      }, { once: true });
+  }
+
+    function createNotificationIcon(iconData) {
+        if (!iconData || !iconData.id || document.getElementById(iconData.id)) return;
+        const iconEl = document.createElement('div');
+        iconEl.className = 'notification-icon';
+        iconEl.id = iconData.id;
+        if (iconData.initialState === 'hidden') {
+            iconEl.classList.add('hidden');
+        }
+        iconEl.innerHTML = getIconHTML(iconData);
+        iconEl.addEventListener('click', () => {
+            handleAction(iconData.action);
+        });
+        notificationIconsContainer.appendChild(iconEl);
+    }
+
+    function resizeImageWindow(windowEl, img, preservePosition = false) {
+        const imagePadding = 10;
+        const totalPadding = imagePadding * 2;
+        const statusBar = document.querySelector('.status-bar');
+        const statusBarHeight = statusBar ? statusBar.offsetHeight : 0;
+        const viewportPadding = 80;
+        const maxWidth = window.innerWidth - viewportPadding - totalPadding;
+        const maxHeight = window.innerHeight - statusBarHeight - viewportPadding - totalPadding;
+
+        let contentWidth = img.naturalWidth;
+        let contentHeight = img.naturalHeight;
+        const ratio = img.naturalWidth / img.naturalHeight;
+
+        if (contentWidth > maxWidth) {
+            contentWidth = maxWidth;
+            contentHeight = contentWidth / ratio;
+        }
+        if (contentHeight > maxHeight) {
+            contentHeight = maxHeight;
+            contentWidth = contentHeight * ratio;
+        }
+
+        const titleBar = windowEl.querySelector('.title-bar');
+        const titleBarHeight = titleBar ? titleBar.offsetHeight : 58;
+        const borderWidths = 8;
+
+        const windowWidth = contentWidth + totalPadding + borderWidths;
+        const windowHeight = contentHeight + totalPadding + titleBarHeight;
+
+        windowEl.style.width = `${windowWidth}px`;
+        windowEl.style.height = `${windowHeight}px`;
+
+        if (!preservePosition) {
+            // Recenter the window
+            windowEl.style.left = `${(window.innerWidth - windowWidth) / 2}px`;
+            windowEl.style.top = `${(window.innerHeight - statusBarHeight - windowHeight) / 2}px`;
+        }
+    }
+
+    function updateImageViewerArrows(windowEl) {
+        const prevArrow = windowEl.querySelector('.prev-arrow');
+        const nextArrow = windowEl.querySelector('.next-arrow');
+        if (!prevArrow || !nextArrow) return;
+
+        const imageContext = JSON.parse(windowEl.dataset.imageContext || '[]');
+        let currentIndex = parseInt(windowEl.dataset.currentImageIndex, 10);
+
+        prevArrow.disabled = currentIndex <= 0;
+        nextArrow.disabled = currentIndex >= imageContext.length - 1;
+
+        prevArrow.onclick = () => navigateImageViewer(windowEl, -1);
+        nextArrow.onclick = () => navigateImageViewer(windowEl, 1);
+    }
+
+    function updateImageInViewer(viewerEl, imageUrl, title, newIndex) {
+        const imgElement = viewerEl.querySelector('.content img');
+        const titleElement = viewerEl.querySelector('.title-text');
+
+        imgElement.style.opacity = '0.5';
+        titleElement.textContent = title;
+
+        const newImg = new Image();
+        newImg.src = imageUrl;
+
+        newImg.onload = () => {
+            imgElement.src = newImg.src;
+            imgElement.style.opacity = '1';
+            viewerEl.dataset.currentImageIndex = newIndex;
+            if (viewerEl.dataset.isMaximized !== 'true') {
+                resizeImageWindow(viewerEl, newImg, true);
+            }
+            updateImageViewerArrows(viewerEl);
+        };
+        newImg.onerror = () => {
+            imgElement.style.opacity = '1';
+            console.error("Failed to load image:", imageUrl);
+        };
+    }
+
+    function navigateImageViewer(windowEl, direction) {
+        const imageContext = JSON.parse(windowEl.dataset.imageContext || '[]');
+        let currentIndex = parseInt(windowEl.dataset.currentImageIndex, 10);
+        const newIndex = currentIndex + direction;
+
+        if (newIndex >= 0 && newIndex < imageContext.length) {
+            const newImageItem = imageContext[newIndex];
+            updateImageInViewer(windowEl, newImageItem.action.payload, newImageItem.name, newIndex);
+        }
+    }
+
+    function openImage(imageUrl, title, context) {
+        const viewerId = 'window-image-viewer';
+        const viewerEl = document.getElementById(viewerId);
+        if (!viewerEl) return;
+
+        const imgElement = viewerEl.querySelector('.content img');
+        const titleElement = viewerEl.querySelector('.title-text');
+
+        titleElement.textContent = title;
+        imgElement.style.opacity = '0.5';
+
+        const newImg = new Image();
+        newImg.src = imageUrl;
+
+        newImg.onload = () => {
+            imgElement.src = newImg.src;
+            imgElement.style.opacity = '1';
+
+            const isOpeningFromHidden = viewerEl.classList.contains('hidden');
+            if (viewerEl.dataset.isMaximized !== 'true') {
+                resizeImageWindow(viewerEl, newImg, !isOpeningFromHidden);
+            }
+
+            if (isOpeningFromHidden) {
+                viewerEl.classList.remove('hidden');
+                viewerEl.classList.add('window-opening');
+                setTimeout(() => viewerEl.classList.remove('window-opening'), 300);
+            }
+
+            if (context && context.length > 0) {
+                const currentIndex = context.findIndex(item => item.action.payload === imageUrl);
+                viewerEl.dataset.imageContext = JSON.stringify(context);
+                viewerEl.dataset.currentImageIndex = currentIndex;
+            } else {
+                viewerEl.dataset.imageContext = '[]';
+                viewerEl.dataset.currentImageIndex = '-1';
+            }
+            updateImageViewerArrows(viewerEl);
+
+            createTaskbarItem(viewerEl);
+            bringToFront(viewerEl);
+        };
+
+        newImg.onerror = () => {
+            imgElement.style.opacity = '1';
+            console.error("Failed to load image:", imageUrl);
+        };
+    }
+
+    function openWindow(windowId) {
+        const windowConfig = DEFAULT_OS_CONFIG.windows[windowId];
+        if (!windowConfig) return;
+
+        const windowToOpen = document.getElementById(windowId);
+        if (!windowToOpen) return;
+
+        const wasHidden = windowToOpen.classList.contains('hidden');
+
+        if (wasHidden) {
+            windowToOpen.classList.remove('hidden');
+            screenShotFlag = true;
+
+            if (windowConfig.content.type === 'storage' && !windowToOpen.dataset.history) {
+                windowToOpen.dataset.history = JSON.stringify([windowId]);
+            }
+
+            if (windowConfig.startMaximized && windowToOpen.dataset.isMaximized !== 'true') {
+                toggleMaximize(windowToOpen);
+            } else {
+                windowToOpen.classList.add('window-opening');
+                setTimeout(() => windowToOpen.classList.remove('window-opening'), 300);
+            }
+
+            if (windowId === 'window-internet') {
+                const searchInput = windowToOpen.querySelector('.mock-search-input');
+                if (searchInput) {
+                    setTimeout(() => {
+                        searchInput.focus();
+                        searchInput.classList.add('typing');
+                    }, 310);
+                }
+            }
+        }
+
+        if (windowConfig.showInTaskbar !== false) {
+            createTaskbarItem(windowToOpen);
+        }
+        bringToFront(windowToOpen);
+    }
+
+    function bringToFront(windowEl) {
+        highestZIndex++;
+        windowEl.style.zIndex = highestZIndex;
+        updateTaskbarActiveState(windowEl.id);
+    }
+
+    function createTaskbarItem(windowEl) {
+        const windowId = windowEl.id;
+        if (document.querySelector(`.taskbar-item[data-window-id="${windowId}"]`)) return;
+        const item = document.createElement('div');
+        item.className = 'taskbar-item';
+        item.dataset.windowId = windowId;
+        const titleBarIcon = windowEl.querySelector('.title-bar-icon');
+        if (titleBarIcon) {
+            const iconClone = titleBarIcon.cloneNode(true);
+            iconClone.classList.remove('title-bar-icon');
+            iconClone.classList.add('taskbar-icon');
+            item.appendChild(iconClone);
+        }
+        item.appendChild(document.createTextNode(windowEl.querySelector('.title-text').textContent));
+        item.addEventListener('click', () => {
+            // Clicking taskbar item for image viewer should just bring to front
+            if (windowId === 'window-image-viewer') {
+                bringToFront(windowEl);
+                if (windowEl.classList.contains('hidden')) {
+                     windowEl.classList.remove('hidden');
+                }
+            } else {
+                openWindow(windowId)
+            }
+        });
+        taskbar.appendChild(item);
+    }
+
+    function removeTaskbarItem(windowId) {
+        const item = document.querySelector(`.taskbar-item[data-window-id="${windowId}"]`);
+        if (item) item.remove();
+    }
+
+    function updateTaskbarActiveState(activeWindowId) {
+        document.querySelectorAll('.taskbar-item').forEach(item => {
+            item.classList.toggle('active', item.dataset.windowId === activeWindowId);
+        });
+    }
+
+    function initializeEventListeners() {
+        const customCursor = document.getElementById('custom-cursor');
+        const startButton = document.getElementById('startButton');
+        const startMenu = document.getElementById('startMenu');
+        const clockElement = document.getElementById('clock');
+
+        let hideCursorTimeout;
+
+        let isMouseOverIframe = false;
+
+        document.addEventListener('mousemove', (e) => {
+            customCursor.style.display = 'block';
+            customCursor.style.left = e.clientX + 'px';
+            customCursor.style.top = e.clientY + 'px';
+
+            clearTimeout(hideCursorTimeout);
+
+            hideCursorTimeout = setTimeout(() => {
+                if (isMouseOverIframe) {
+                    customCursor.style.display = 'none';
+                }
+            }, 50);
+
+
+
+        });
+
+        window.addEventListener('mouseover', (e) => {
+            if (e.target.tagName === 'IFRAME') {
+                isMouseOverIframe = true;
+            }
+        });
+
+        window.addEventListener('mouseout', (e) => {
+            if (e.target.tagName === 'IFRAME') {
+                isMouseOverIframe = false;
+            }
+        });
+
+
+        document.addEventListener('mousedown', () => {
+          customCursor.classList.add('clicked')
+
+          if (!isInteracting&&!isBooting&&infocusmode) {
+         isInteracting = true;
+         window.parent.postMessage({ type: 'focus' }, '*');
+     }
+
+     clearTimeout(interactionTimer);
+     interactionTimer = setTimeout(() => {
+         isInteracting = false;
+         if(infocusmode) window.parent.postMessage({ type: 'relax' }, '*');
+        }, INTERACTION_TIMEOUT);
+
+      });
+        document.addEventListener('mouseup', () => customCursor.classList.remove('clicked'));
+
+        document.documentElement.addEventListener('mouseleave', () => {
+            clearTimeout(hideCursorTimeout);
+            customCursor.style.display = 'none';
+        });
+
+
+        document.body.addEventListener('click', (e) => {
+            if (!e.target.closest('.desktop-icon')) {
+                 document.querySelectorAll('.desktop-icon.selected').forEach(i => i.classList.remove('selected'));
+            }
+            if (!e.target.closest('.storage-icon') && !e.target.closest('.back-button')) {
+                document.querySelectorAll('.storage-icon.selected').forEach(i => i.classList.remove('selected'));
+                document.querySelectorAll('.window').forEach(win => {
+                    if(win.querySelector('.storage-sidebar')) updateSidebar(win, null);
+                });
+            }
+             if (!e.target.closest('.browser-address-bar-container')) {
+                document.querySelectorAll('.browser-dropdown.show').forEach(d => d.classList.remove('show'));
+            }
+        }, true);
+
+        startButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            startMenu.classList.toggle('show');
+              screenShotFlag = true;
+        });
+
+        document.body.addEventListener('click', (e) => {
+            if (!e.target.closest('.start-menu') && !e.target.closest('.start-button')) {
+                startMenu.classList.remove('show');
+            }
+        });
+
+        updateClock();
+        setInterval(updateClock, 1000);
+    }
+
+
+    function updateClock() {
+        const now = new Date();
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        clockElement.textContent = `${hours}:${minutes}`;
+    }
+
+    function captureAndDownloadScreenshot() {
+        html2canvas(document.body, {
+            useCORS: true,
+            backgroundColor: null,
+            logging: false,
+            scale: 0.63,
+            width: 1669,
+            height: 1284,
+            windowWidth: 1669,
+            windowHeight: 1284
+         }).then(canvas => {
+           createImageBitmap(canvas, { imageOrientation: 'flipY' }).then(bitmap => {
+          window.parent.postMessage({ type: 'screenshotData', bitmap: bitmap }, '*', [bitmap]);
+          //console.log('Sent a screenshot bitmap');
+      });
+
+        }).catch(e => console.error("Error during screenshot:", e));
+    }
+
+    function completeBootProcess() {
+        const bootIframe = document.getElementById('boot-iframe');
+        const blackOverlay = document.getElementById('black-overlay');
+
+        if (bootIframe && blackOverlay) {
+            bootIframe.style.opacity = '0';
+            bootIframe.addEventListener('transitionend', () => {
+                bootIframe.style.pointerEvents = 'none';
+            }, { once: true });
+
+            setTimeout(() => {
+              isBooting = false;
+            }, 2500 );
+            setTimeout(() => {
+                blackOverlay.style.opacity = '0';
+
+
+                blackOverlay.addEventListener('transitionend', function onTransitionEnd() {
+                    blackOverlay.style.pointerEvents = 'none';
+
+                }, { once: true });
+
+            }, BOOT_FADE_OUT_TIME_MS);
+        }
+    }
+
+    window.addEventListener('message', (event) => {
+        const command = event.data;
+        if (command === 'boot_complete') completeBootProcess();
+        else if (command === 'captureScreenshot')
+            {
+
+              if (screenShotFlag&&!isBooting&&infocusmode&&isInteracting) { captureAndDownloadScreenshot(); screenShotFlag = false; }
+            }
+        else if (command === 'enter') {
+            setTimeout(() => {
+          infocusmode = true; }, 50);
+        }
+        else if (command === 'exit') {
+           isInteracting = false;
+          infocusmode = false;}
+        else if (command === 'boot_finished'){
+           window.parent.postMessage({ type: 'bootfinished' }, '*');
+        } else if(command === 'begin_boot'){
+            bootIframe.contentWindow.postMessage('beginBoot', '*');
+        }
+    });
+
+    async function initializeOS() {
+        document.documentElement.style.setProperty('--grid-thickness', `${GRID_THICKNESS}px`);
+        document.documentElement.style.setProperty('--grid-line-color', GRID_COLOR);
+        document.documentElement.style.setProperty('--scanline-intensity', SCANLINE_INTENSITY);
+        document.documentElement.style.setProperty('--boot-fade-duration', `${BOOT_FADE_OUT_TIME_MS / 1000}s`);
+        document.documentElement.style.setProperty('--black-overlay-fade-duration', `${BLACK_SCREEN_FADE_OUT_TIME_MS / 1000}s`);
+        document.documentElement.style.setProperty('--submenu-offset-x', `${SUBMENU_OFFSET_X}px`);
+        document.documentElement.style.setProperty('--submenu-offset-y', `${SUBMENU_OFFSET_Y}px`);
+
+        let config = DEFAULT_OS_CONFIG;
+        if (OS_CONFIG_URL) {
+            try {
+                const response = await fetch(OS_CONFIG_URL);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                config = await response.json();
+            } catch (error) {
+                console.error("Failed to load remote config, falling back to default.", error);
+            }
+        }
+        buildUIFromConfig(config);
+        initializeEventListeners();
+
+        const blackOverlay = document.getElementById('black-overlay');
+        if (!SHOW_BOOT_SCREEN) {
+            if (bootIframe) bootIframe.style.display = 'none';
+            if (blackOverlay) blackOverlay.style.display = 'none';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', initializeOS);
+    </script>
+</body>
+</html>
