@@ -15,7 +15,7 @@
     <style>
         /* Custom styles for the 3D canvas and file input */
 
-           #startup-overlay {
+        #startup-overlay {
             position: fixed;
             inset: 0; /* A modern shorthand for top, right, bottom, left = 0 */
             background-color: #000;
@@ -48,8 +48,8 @@
 
         /* MODIFIED: Start the button slightly smaller for the scale-up effect */
         #startup-button {
-            width: 550px;
-            height: 550px;
+            width: 530px;
+            height: 530px;
             cursor: pointer;
             transform: scale(0.86);
             opacity: 0;
@@ -1405,6 +1405,41 @@
             const iframe = cssObject.element;
             iframe.addEventListener('mouseenter', () => { isMouseOverIframe = true; });
             iframe.addEventListener('mouseleave', () => { isMouseOverIframe = false; });
+
+
+
+            window.addEventListener('message', (event) => {
+              // ---- NEW: Handle keydown events from the iframe ----
+              if (event.data && event.data.type === 'iframe_keydown') {
+
+
+                  if (event.data.code === 'Space') {
+                      if (spacebarSound) {
+                          spacebarSound.currentTime = 0;
+                          spacebarSound.play().catch(e => console.log("Spacebar sound blocked:", e));
+                      }
+                  } else if (keyboardKeys.length > 0) {
+                      playRandomKeypressSound(); // This function already plays a random keypress sound
+                  }
+                  return; // End execution here for this message type
+              }
+              // ---- END of new code block ----
+
+
+              // Your existing message handlers...
+              if (event.data && event.data.type === 'screenshotData') {
+                  const bitmap = event.data.bitmap;
+                  // ... rest of your screenshot logic
+                  // ...
+                  return;
+              } else if (event.data && event.data.type === 'focus') {
+                  // ... your focus logic
+              } else if (event.data && event.data.type === 'relax') {
+                  // ... your relax logic
+              } else if (event.data && event.data.type === 'bootfinished') {
+                  // ... your bootfinished logic
+              }
+          });
 
             // --- REVISED: Proportional orbit based on mouse position ---
             window.addEventListener('mousemove', (event) => {
